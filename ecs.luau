@@ -1,4 +1,3 @@
--- Simple Luau-based ECS inspired by JECS (with some archetype & query code derived from it)
 local ecs = {
 	-- Global config
 	--- Defaults to true. If you are regularly emptying out and recreating archetypes, consider disabling this (and then consider calling world:Clean() on occasion.)
