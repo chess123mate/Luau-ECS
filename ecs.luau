@@ -210,7 +210,7 @@ local function World_removeComponentFromEntityArchetype(self, e, C)
 end
 
 function World:Add(e, C)
-	local archetype = (e or error("Missing entity argument in World:Add", 2)).archetype
+	local archetype = (e or error("Missing entity argument in World:Add", 2)).archetype or error("Argument #1 is not an entity or was already deleted", 2)
 	if archetype.HasComponent[C] then return end -- already added
 	-- Archetype
 	World_addComponentToEntityArchetype(self, e, validateComponent(C))
@@ -227,7 +227,7 @@ end
 
 --- Combination of World:Add and associating a value between the entity and component
 function World:Set(e, C, value)
-	local archetype = (e or error("Missing entity argument in World:Set", 2)).archetype
+	local archetype = (e or error("Missing entity argument in World:Set", 2)).archetype or error("Argument #1 is not an entity or was already deleted", 2)
 	local onAdd
 	if not archetype.HasComponent[C] then
 		World_addComponentToEntityArchetype(self, e, validateComponent(C))
@@ -242,7 +242,7 @@ function World:Set(e, C, value)
 	if onChange and value ~= prev then onChange(e, value, prev) end
 end
 function World:Remove(e, C)
-	local archetype = (e or error("Missing entity argument in World:Set", 2)).archetype
+	local archetype = (e or error("Missing entity argument in World:Set", 2)).archetype or error("Argument #1 is not an entity or was already deleted", 2)
 	if not archetype.HasComponent[C or error("Missing component argument in World:Remove", 2)] then return end -- already removed
 	World_removeComponentFromEntityArchetype(self, e, C)
 	-- Update value

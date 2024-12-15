@@ -261,6 +261,10 @@ tests.errors = {
 		{name="deleteNoEntity", function(x)
 			x.w:Delete(nil)
 		end, "Missing"},
+		{name="removeDeletedEntity", function(x)
+			x.w:Delete(x.e1)
+			x.w:Remove(x.e1)
+		end, "deleted"}
 	}
 }
 
