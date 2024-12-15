@@ -36,7 +36,7 @@ export type Query<T extends unknown[]> = Iter<T> & {
 	/** Only iterate over entities that do *not* have the specified components */
 	Without(...components: Entity[]): Query<T>
 	/** Only iterate over entities in archetypes for which `keep(archetype)` returns true */
-	Custom(keep: (archetype: Archetype) => boolean): Query<T>
+	Custom(keep: (hasComponent: Set<Entity>) => boolean): Query<T>
 }
 
 type InferComponentValue<E> = E extends Component<infer T> ? T : undefined

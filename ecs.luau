@@ -470,9 +470,10 @@ end
 --- Filters out any archetypes for which `keep(archetype)` returns false
 function Query:Custom(keep)
 	local archetypes = self.archetypes
+	-- local has = archetypes.HasComponent
 	local count = #archetypes
 	for i = count, 1, -1 do
-		if keep(archetypes[i]) then continue end
+		if keep(archetypes[i].HasComponent) then continue end
 		if i == count then
 			archetypes[i] = nil
 		else
