@@ -12,5 +12,5 @@
 	"files": [
 		"ecs.luau",
 		"ecs.d.ts"
-	],
+	]
 }
