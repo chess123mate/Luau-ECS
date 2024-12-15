@@ -1,0 +1,16 @@
+{
+	"name": "@rbxts/luau-ecs",
+	"version": "0.1.0",
+	"description": "Luau based ECS",
+	"main": "ecs.luau",
+	"typings": "ecs.d.ts",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/chess123mate/luau-ecs.git"
+	},
+	"author": "chess123mate",
+	"files": [
+		"ecs.luau",
+		"ecs.d.ts"
+	],
+}

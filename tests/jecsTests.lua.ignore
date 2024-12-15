@@ -1,0 +1,108 @@
+return function(tests, t)
+
+
+local ecs = require(game.ReplicatedStorage.Lib)
+
+function tests.AddMany()
+	local s = os.clock()
+	local world = ecs.World.new()
+	local C1 = world:entity()
+	local C2 = world:entity()
+	local C3 = world:entity()
+	local C4 = world:entity()
+	local C5 = world:entity()
+	local C6 = world:entity()
+	local C7 = world:entity()
+	local C8 = world:entity()
+	local e = world:entity()
+	for i = 1, 5000 do
+		world:set(e, C1, i)
+		world:set(e, C2, i)
+		world:set(e, C3, i)
+		world:set(e, C4, i)
+		world:set(e, C5, i)
+		world:set(e, C6, i)
+		world:set(e, C7, i)
+		world:set(e, C8, i)
+	end
+	print("JECS.AddMany", os.clock() - s)
+end
+
+function tests.SpawnMany()
+	local s = os.clock()
+	local world = ecs.World.new()
+	for i = 1, 5000 do
+		world:entity()
+	end
+	print("JECS.SpawnMany", os.clock() - s)
+end
+
+function tests.DeleteMany()
+	local world = ecs.World.new()
+	local es = {}
+	for i = 1, 5000 do
+		es[i] = world:entity()
+	end
+	local s = os.clock()
+	for i, e in es do
+		world:delete(e)
+	end
+	print("JECS.DeleteMany", os.clock() - s)
+end
+
+function tests.DeleteManyWith2Data()
+	local world = ecs.World.new()
+	local C1 = world:component()
+	local C2 = world:component()
+	local es = {}
+	for i = 1, 5000 do
+		local e = world:entity()
+		es[i] = e
+		world:set(e, C1, i)
+		world:set(e, C2, i)
+	end
+	local s = os.clock()
+	for i, e in es do
+		world:delete(e)
+	end
+	print("JECS.DeleteManyWith2Data", os.clock() - s)
+end
+
+function tests.Query()
+	_G.clear2()
+	local numC = 4
+	local n = 100
+	local rounds = 10
+	local world = ecs.World.new()
+	local Cs = {}
+	for c = 1, numC do
+		Cs[c] = world:component()
+	end
+	local es = {}
+	for i = 1, n do
+		es[i] = world:entity()
+	end
+	for c = 1, numC do
+		local C = Cs[c]
+		for i = 1, n, c do
+			world:add(es[i], C)
+		end
+	end
+	local s = os.clock()
+	for r = 1, rounds do
+		for i = 1, numC do
+			local query = world:query(Cs[1])
+			for j = 2, i do
+				query:with(Cs[j])
+			end
+			for e in query do
+			end
+			for e in world:query(Cs[i]) do
+			end
+		end
+	end
+	print("JECS.Query", os.clock() - s, "|", _G.get2())
+end
+
+
+end -- function(tests, t)
