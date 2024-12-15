@@ -541,6 +541,13 @@ end
 function World:OnChange(C, onChange)
 	override(C, "OnChange", onChange)
 end
+function World:OnNewValue(C, onNewValue)
+	override(C, "OnChange", function(e, value, prev)
+		if value then
+			onNewValue(e, value, prev)
+		end
+	end)
+end
 function World:OnRemove(C, onRemove)
 	override(C, "OnRemove", onRemove)
 end

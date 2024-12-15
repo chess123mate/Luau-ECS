@@ -85,7 +85,9 @@ export class World {
 	/** Extends any OnChange behaviour defined for `C`.\
 	 * Triggered whenever the value associated with C is changed on some entity.
 	 * @param onChange `value` and `prev` are guaranteed to be different. Either could be `nil`, as OnChange will trigger along with OnAdd and OnRemove. */
-	OnChange<Data>(C: Component<Data>, onChange: (e: Entity, value: Data, prev: Data) => void): void
+	OnChange<Data>(C: Component<Data>, onChange: (e: Entity, value: Data | undefined, prev: Data | undefined) => void): void
+	/** Same as OnChange, but only triggers when `value` is not undefined. */
+	OnNewValue<Data>(C: Component<Data>, onNewValue: (e: Entity, value: Data, prev: Data | undefined) => void): void
 
 	/** Extends any OnRemove behaviour defined for `C`.\
 	 * Triggered when C is removed from an entity. */
