@@ -111,6 +111,7 @@ local function World_newEntity(self, name)
 		archetypes = {}, -- list of archetypes that the entity (as a component) is in
 		archetypesCount = 0,
 	}
+	self.idToEntity[nextId] = e
 	Archetype_addEntity(self.emptyArchetype, e)
 	return e
 end
@@ -126,12 +127,16 @@ function World.new()
 		keyToArchetype = {[""] = emptyArchetype},
 		emptyArchetype = emptyArchetype,
 		nextId = 0,
+		idToEntity = {},
 	}, World)
 	self.ComponentFlag = World_newEntity(self, "ComponentFlag")
 	self.ComponentFlag.IsFlag = true
 	self:Add(self.ComponentFlag, self.ComponentFlag)
 	self.EntityFlag = self:Flag("EntityFlag")
 	return self
+end
+function World:IdToEntity(id)
+	return self.idToEntity[id]
 end
 function World:Entity(name)
 	local e = World_newEntity(self, name)
@@ -289,6 +294,8 @@ function World:Delete(e)
 		if onRemove then onRemove(e2, prevValue) end
 		if onDelete then onDelete(e2, prevValue) end
 	end
+
+	self.idToEntity[e.Id] = nil
 end
 
 --- Remove empty archetypes (good for memory and query performance, but at the cost of having to create them again later, if needed).

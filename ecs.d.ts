@@ -75,6 +75,7 @@ export class World {
 	 * Not needed if Config.AutoDeleteEmptyArchetypes is true.
 	 */
 	Cleanup(): void
+	IdToEntity(id: number): Entity | undefined
 
 	/** Extends any OnAdd behaviour defined for `C`.\
 	 * Triggered when C is added to an entity. */
