@@ -17,6 +17,8 @@ local function validateComponent(C)
 end
 --[[
 Unlike proper ECS, we use tables for entities: {
+	Name (for debugging)
+	Id (convenience for serialization & replication)
 	archetype: Archetype
 	entitiesIndex: number (into archetype.entities)
 	[Component<T>]: T (not applicable for flags) (note that "nil" is a valid value, i.e. testing to see if a key exists doesn't necessarily tell you if an entity has a component or not)
@@ -28,7 +30,7 @@ Archetype = {
 	count (of entities)
 	components = List<Component>
 	HasComponent = Set<Component>
-	key = table.concat(components converted to strings) -- note that this means metatables with __tostring should never be applied to components
+	key = table.concat(component Ids converted to strings) -- note that this means metatables with __tostring should never be applied to components
 }
 ]]
 
@@ -62,13 +64,13 @@ local function findInsertIndex(types: { string }, toAdd: string): number
 end
 local function Archetype_addGetKey(archetype, C)
 	local components = table.clone(archetype.components)
-	local s = tostring(C)
+	local s = tostring(C.Id)
 	table.insert(components, findInsertIndex(components, s), s)
 	return table.concat(components), components
 end
 local function Archetype_removeGetKey(archetype, C)
 	local components = table.clone(archetype.components)
-	local s = tostring(C)
+	local s = tostring(C.Id)
 	table.remove(components, table.find(components, s))
 	return table.concat(components), components
 end
@@ -101,7 +103,10 @@ local World = {}
 ecs.World = World
 World.__index = World
 local function World_newEntity(self, name)
+	local nextId = self.nextId
+	self.nextId = nextId + 1
 	local e = {
+		Id = nextId,
 		Name = name,
 		archetypes = {}, -- list of archetypes that the entity (as a component) is in
 		archetypesCount = 0,
@@ -120,6 +125,7 @@ function World.new()
 	local self = setmetatable({
 		keyToArchetype = {[""] = emptyArchetype},
 		emptyArchetype = emptyArchetype,
+		nextId = 0,
 	}, World)
 	self.ComponentFlag = World_newEntity(self, "ComponentFlag")
 	self.ComponentFlag.IsFlag = true
@@ -127,13 +133,11 @@ function World.new()
 	self.EntityFlag = self:Flag("EntityFlag")
 	return self
 end
-World.Entity = World_newEntity -- function(self, name)
 function World:Entity(name)
 	local e = World_newEntity(self, name)
 	self:Add(e, self.EntityFlag)
 	return e
 end
-World.Component = World.Entity
 function World:Component(name)
 	local e = World_newEntity(self, name)
 	self:Add(e, self.ComponentFlag)
@@ -245,9 +249,6 @@ function World:Remove(e, C)
 	local onRemove = C.OnRemove
 	if onRemove then onRemove(e, prevValue) end
 end
-function World:IsLiveEntity(e)
-	return type(e) == "table" and e.archetype ~= nil
-end
 function World:Delete(e)
 	local archetype = (e or error("Missing entity argument in World:Delete", 2)).archetype
 	if not archetype then return end -- already deleted
@@ -300,7 +301,6 @@ function World:Cleanup()
 		end
 	end
 end
--- todo consider assigning ids to entities (to act as a component) and using those instead of tostring(table)?
 
 local Query = {}
 Query.__index = Query
@@ -319,11 +319,10 @@ function Query:__iter()
 	-- Initialize
 	local archetypes = self.archetypes
 	local archetypeI = 0
-	local archetype --= archetypes[archetypeI]
+	local archetype
 	local entities = emptyTable
 	-- Cache number of entities in each archetype so that we don't iterate multiple times over moved/added entities
-	-- (TODO doc that it's okay to change currently-iterated-over-entity)
-	local i --= archetype.count
+	local i
 	local entityCounts = table.create(#archetypes)
 	for i, archetype in archetypes do
 		entityCounts[i] = archetype.count

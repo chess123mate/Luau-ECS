@@ -9,6 +9,8 @@ export type Archetype = {
 	HasComponent: Set<Entity>
 }
 export type Entity = {
+	/** The id (unique across the entire world) */
+	Id: number
 	/** The debug name associated with this entity */
 	Name?: string
 }
@@ -18,7 +20,7 @@ type ComponentHooks<Data> = {
 	OnRemove?: (e: Entity, prev: Data) => void
 	OnDelete?: (e: Entity, prev: Data) => void
 }
-export type Component<Data> = Reconstruct<Entity & { __data: Data }> & ComponentHooks<Data>
+export type Component<Data = unknown> = Reconstruct<Entity & { __data: Data }> & ComponentHooks<Data>
 
 type FlagHooks = {
 	OnAdd?: (e: Entity) => void
@@ -59,13 +61,10 @@ export class World {
 	/** Combination of World:Add and associating a value between the entity and component. (Note that an entity can have a component even if its value is undefined, so `value = undefined` is valid.) */
 	Set<Data>(e: Entity, C: Component<Data>, value: Data): void
 	/** You can also get the data directly via e[C], so long as you treat it as read-only. */
-	Get<Data>(e: Entity, C: Component<Data>): Data | undefined
-	Remove(e: Entity, C: Flag): void
-	Remove<Data>(e: Entity, C: Component<Data>): void
+	Get<C extends Component<any> | Flag>(e: Entity, C: C): C extends Component<infer Data> ? Data | undefined : undefined
+	Remove<C extends Component<any> | Flag>(e: Entity, C: C): void
 	/** Removes 'e' from the world, deleting all information off of 'e' and treating it like a component and removing all information associated with it from all entities. */
 	Delete(e: Entity): void
-	/** True if `e` is an undeleted entity. */
-	IsLiveEntity(e: unknown): e is Entity
 
 	/** Iterate over all entities that have the specified components.\
 	 * Note: you may change the entity under iteration in any way you wish, but changing *other* entities results in undefined behaviour.
