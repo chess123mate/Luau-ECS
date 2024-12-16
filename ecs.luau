@@ -202,7 +202,7 @@ local function World_removeComponentFromEntityArchetype(self, e, C)
 	local archetype = self.keyToArchetype[key]
 	if not archetype then
 		local hasComponent = table.clone(e.archetype.HasComponent)
-		hasComponent[C] = true
+		hasComponent[C] = nil
 		World_newArchetypeFor(self, e, key, components, hasComponent)
 	else
 		Archetype_addEntity(archetype, e)
