@@ -66,13 +66,13 @@ local function Archetype_addGetKey(archetype, C)
 	local components = table.clone(archetype.components)
 	local s = tostring(C.Id)
 	table.insert(components, findInsertIndex(components, s), s)
-	return table.concat(components), components
+	return table.concat(components, "_"), components
 end
 local function Archetype_removeGetKey(archetype, C)
 	local components = table.clone(archetype.components)
 	local s = tostring(C.Id)
 	table.remove(components, table.find(components, s))
-	return table.concat(components), components
+	return table.concat(components, "_"), components
 end
 
 local function Archetype_associateComponents(archetype)
