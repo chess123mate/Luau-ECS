@@ -317,6 +317,7 @@ local function doNothing() end
 local emptyQuery = table.freeze(setmetatable({
 	With = returnSelf,
 	Without = returnSelf,
+	Custom = returnSelf,
 	-- archetypes = emptyTable,
 	-- components = emptyTable,
 }, {
