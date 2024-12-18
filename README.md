@@ -8,3 +8,4 @@ Usage Notes
 - Entities are tables (with data inside the entity), not integers, but for replication/serialization you can use entity.Id
 - You can modify entities during hooks in any way
 - During iteration, you can modify the entity being iterated over in any way, but not any others (such as by accessing or querying other entities and adding/removing components to them)
+- During deletion of an entity, any attempt to add/modify components & values will silently fail

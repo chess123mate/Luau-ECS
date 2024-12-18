@@ -62,9 +62,19 @@ export class World {
 	Set<Data>(e: Entity, C: Component<Data>, value: Data): void
 	/** You can also get the data directly via e[C], so long as you treat it as read-only. */
 	Get<C extends Component<any> | Flag>(e: Entity, C: C): C extends Component<infer Data> ? Data | undefined : undefined
+
+	/* Removes a component from the entity
+	 * Does nothing if the entity doesn't have the component
+	 */
 	Remove<C extends Component<any> | Flag>(e: Entity, C: C): void
-	/** Removes 'e' from the world, deleting all information off of 'e' and treating it like a component and removing all information associated with it from all entities. */
+
+	/* Deletes all data from the entity, removes the entity from the world, and - treating `e` like a component - removes any data associated with `e` from all other entities.\
+	 * Of course, if you have references to entities in any of your data, this cannot be deleted automatically - use OnDelete hooks for such components.
+	 */
 	Delete(e: Entity): void
+
+	/* Returns true while the world is deleting 'e'. */
+	IsDeleting(e: Entity): boolean
 
 	/** Iterate over all entities that have the specified components.\
 	 * Note: you may change the entity under iteration in any way you wish, but changing *other* entities results in undefined behaviour.

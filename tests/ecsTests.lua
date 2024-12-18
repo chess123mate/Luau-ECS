@@ -233,6 +233,51 @@ function tests.EditInQuery()
 	end
 	t.falsy(next(shouldSee), "failed to iterate over something")
 end
+local function ensureEntityNotInArchetypes(w, e)
+	for key, archetype in w.keyToArchetype do
+		for _, entity in archetype.entities do
+			if entity == e then
+				error("Deleted entity " .. (e.Name or e.Id) .. " found in archetype")
+			end
+		end
+	end
+end
+function tests.RemoveWhileDeleting()
+	local w = new()
+	local Health = w:Component()
+	local IsDead = w:Flag()
+	w:OnChange(Health, function(e, h)
+		if h and h <= 0 then
+			w:Add(e, IsDead)
+		else
+			w:Remove(e, IsDead)
+		end
+	end)
+	local e = w:Entity()
+	w:Set(e, Health, 0)
+	w:Delete(e)
+	ensureEntityNotInArchetypes(w, e)
+end
+function tests.AddWhileDeleting_And_IsDeleting()
+	local w = new()
+	local Health = w:Component("Health")
+	local IsNotAlive = w:Flag("IsNotAlive")
+	local isDeleting = false
+	w:OnChange(Health, function(e, h)
+		t.truthyEquals(w:IsDeleting(e), isDeleting, "IsDeleting")
+		if not h or h <= 0 then
+			w:Add(e, IsNotAlive)
+		else
+			w:Remove(e, IsNotAlive)
+		end
+	end)
+	local e = w:Entity("e")
+	w:Set(e, Health, 0)
+	isDeleting = true
+	w:Delete(e)
+	t.falsy(w:IsDeleting(e), "IsDeleting after Delete")
+	ensureEntityNotInArchetypes(w, e)
+end
 
 tests.errors = {
 	setup = setupAB2,

@@ -99,6 +99,15 @@ local function Archetype_disassociateComponents(archetype)
 	end
 end
 
+local emptyTable = table.freeze({})
+local deletingArchetype = table.freeze({
+	entities = emptyTable,
+	count = 0,
+	components = emptyTable,
+	HasComponent = emptyTable,
+	key = "",
+})
+
 local World = {}
 ecs.World = World
 World.__index = World
@@ -170,8 +179,10 @@ local function World_newArchetypeFor(self, e, key, components, hasComponent)
 end
 
 --- Removes the entity from its currently assigned archetype. Its archetype and entitiesIndex properties should should be cleared/changed after calling this.
+--- Returns true if the current operation should be cancelled because the entity is being deleted
 local function World_removeEntityFromCurrentArchetype(self, e)
 	local archetype = e.archetype
+	if archetype == deletingArchetype then return true end -- do not perform this operation
 	Archetype_removeEntity(archetype, e)
 	if e.count == 0 and ecs.AutoDeleteEmptyArchetypes and archetype.key ~= "" then -- never delete emptyArchetype
 		self.keyToArchetype[archetype.key] = nil
@@ -181,8 +192,9 @@ end
 
 --- Add "C" to e's archetype
 --- assumes !e.archetype.HasComponent[C]; does not handle hooks nor value
+--- Returns true if 'e' is being deleted
 local function World_addComponentToEntityArchetype(self, e, C)
-	World_removeEntityFromCurrentArchetype(self, e)
+	if World_removeEntityFromCurrentArchetype(self, e) then return true end
 	local key, components = Archetype_addGetKey(e.archetype, C)
 	local archetype = self.keyToArchetype[key]
 	if not archetype then
@@ -196,8 +208,9 @@ end
 
 --- Remove "C" from e's archetype
 --- assumes e.archetype.HasComponent[C]; does not handle hooks nor value
+--- Returns true if 'e' is being deleted
 local function World_removeComponentFromEntityArchetype(self, e, C)
-	World_removeEntityFromCurrentArchetype(self, e)
+	if World_removeEntityFromCurrentArchetype(self, e) then return true end
 	local key, components = Archetype_removeGetKey(e.archetype, C)
 	local archetype = self.keyToArchetype[key]
 	if not archetype then
@@ -241,6 +254,9 @@ function World:Set(e, C, value)
 	local onChange = C.OnChange
 	if onChange and value ~= prev then onChange(e, value, prev) end
 end
+
+--- Removes a component from the entity
+--- Does nothing if the entity doesn't have the component
 function World:Remove(e, C)
 	local archetype = (e or error("Missing entity argument in World:Set", 2)).archetype or error("Argument #1 is not an entity or was already deleted", 2)
 	if not archetype.HasComponent[C or error("Missing component argument in World:Remove", 2)] then return end -- already removed
@@ -254,12 +270,18 @@ function World:Remove(e, C)
 	local onRemove = C.OnRemove
 	if onRemove then onRemove(e, prevValue) end
 end
+
+--- Deletes all data from the entity, removes the entity from the world, and - treating `e` like a component - removes any data associated with `e` from all other entities.
+--- Of course, if you have references to entities in any of your data, this cannot be deleted automatically - use OnDelete hooks for such components.
 function World:Delete(e)
 	local archetype = (e or error("Missing entity argument in World:Delete", 2)).archetype
 	if not archetype then return end -- already deleted
 	-- Remove everything from 'e'
-	World_removeEntityFromCurrentArchetype(self, e) -- doesn't clear e.archetype
-	for C in e.archetype.HasComponent do
+	-- Note: if this next line returns, we're already deleting 'e'
+	if World_removeEntityFromCurrentArchetype(self, e) then return end -- doesn't clear e.archetype
+	local components = e.archetype.HasComponent
+	e.archetype = deletingArchetype
+	for C in components do
 		if C.IsFlag then
 			local onRemove = C.OnRemove
 			local onDelete = C.OnDelete
@@ -278,7 +300,6 @@ function World:Delete(e)
 			if onDelete then onDelete(e, prevValue) end
 		end
 	end
-	e.archetype = nil
 
 	-- Remove 'e' from everything
 	local onChange = e.OnChange
@@ -296,6 +317,13 @@ function World:Delete(e)
 	end
 
 	self.idToEntity[e.Id] = nil
+	e.archetype = nil
+end
+
+--- Returns true while the world is deleting 'e'.
+function World:IsDeleting(e)
+	local archetype = (e or error("Missing entity argument in World:IsDeleting", 2)).archetype
+	return archetype == deletingArchetype
 end
 
 --- Remove empty archetypes (good for memory and query performance, but at the cost of having to create them again later, if needed).
@@ -311,7 +339,6 @@ end
 
 local Query = {}
 Query.__index = Query
-local emptyTable = table.freeze({})
 local function returnSelf(self) return self end
 local function doNothing() end
 local emptyQuery = table.freeze(setmetatable({
