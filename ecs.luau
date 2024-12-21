@@ -325,6 +325,8 @@ local spareTable = {}
 --- Useful to clear temporary flags/data efficiently; should be used instead of `for e in world:Query(C) do world:Remove(e, C) end`
 function World:ClearComponent(C, _deleting)
 	-- Remove the entire archetype (for each archetype C is in) rather than removing each entity individually
+	local numArchetypesCount = C.archetypesCount
+	if numArchetypesCount == 0 then return end
 	local onChange = C.OnChange
 	local onRemove = C.OnRemove
 	local onDelete = C.OnDelete
@@ -336,7 +338,7 @@ function World:ClearComponent(C, _deleting)
 		spareTable = nil
 	end
 	local archetypes = C.archetypes
-	for i = C.archetypesCount, 1, -1 do -- must iterate in reverse order due to Archetype_disassociateComponents
+	for i = numArchetypesCount, 1, -1 do -- must iterate in reverse order due to Archetype_disassociateComponents
 		local archetype = archetypes[i]
 		if archetype.count == 0 then continue end
 		local entities = archetype.entities
@@ -396,18 +398,17 @@ function World:ClearComponent(C, _deleting)
 			archetype.HasComponent[C] = nil
 			archetype.key = key
 			if not autoDelete then -- the "if autoDelete" case handled below with table.clear(C.archetypes)
-				-- (copied from disassociateComponents), remove archetype from C:
-				local archetypes = C.archetypes
+				-- (copied from disassociateComponents and adjusted to use local variables), remove archetype from C:
 				local i = table.find(archetypes, archetype)
-				local count = C.archetypesCount
-				if i == count then
+				if i == numArchetypesCount then
 					archetypes[i] = nil
 				else
 					local moving = archetypes[count]
 					archetypes[i] = moving
 					archetypes[count] = nil
 				end
-				C.archetypesCount = count - 1
+				numArchetypesCount -= 1
+				C.archetypesCount = numArchetypesCount
 			end
 		end
 	end
