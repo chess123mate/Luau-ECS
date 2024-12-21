@@ -2,20 +2,22 @@ return function(tests, t)
 
 
 local ecs = require(game.ReplicatedStorage.ecs)
+ecs.AutoDeleteEmptyArchetypes = false
 --[[
 ECS:
 AddMany 0.004341599997133017
 SpawnMany 0.006160699995234609
-DeleteMany 0.002161300042644143
-	if no ComponentFlag/EntityFlag, DeleteMany is 0.0019019001629203558
+DeleteMany 0.0015
+	if no ComponentFlag/EntityFlag, DeleteMany was a bit faster
 DeleteManyWith2Data 0.0028117999900132418
+DeleteManyWith2DataB 0.0025 (uses ClearComponent)
 Query 0.0021
 
 JECS:
 AddMany 0.019296499900519848 (4.4x)
 SpawnMany 0.0019157999195158482 (0.31x)
-DeleteMany 0.002738300012424588 (1.26x)
-DeleteManyWith2Data 0.005780600011348724 (2.05x)
+DeleteMany 0.002738300012424588 (1.8x)
+DeleteManyWith2Data 0.005780600011348724 (2.05x) (2.3x compared to B)
 Query 0.0024 (1.1x)
 ]]
 
@@ -82,6 +84,25 @@ function tests.DeleteManyWith2Data()
 		world:Delete(e)
 	end
 	print("DeleteManyWith2Data", os.clock() - s)
+end
+function tests.DeleteManyWith2DataB()
+	local world = ecs.World.new()
+	local C1 = world:Component()
+	local C2 = world:Component()
+	local es = {}
+	for i = 1, 5000 do
+		local e = world:Entity()
+		es[i] = e
+		world:Set(e, C1, i)
+		world:Set(e, C2, i)
+	end
+	local s = os.clock()
+	world:ClearComponent(C1)
+	world:ClearComponent(C2)
+	for i, e in es do
+		world:Delete(e)
+	end
+	print("DeleteManyWith2DataB", os.clock() - s)
 end
 
 function tests.Query()

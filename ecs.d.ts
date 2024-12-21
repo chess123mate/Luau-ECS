@@ -1,6 +1,6 @@
 /** Config that adjusts how all worlds operate */
 export const Config: {
-	/** Defaults to true. If you are regularly emptying out and recreating archetypes, consider disabling this (and then consider calling world:Clean() on occasion.) */
+	/** Defaults to false. Might make sense to set to `true` to save on memory if you have numerous combinations of components/flags that are often only used briefly. (For example, a scenario where you have 20 flags and an entity may randomly have none or all would create 2^20 archetypes.) Alternatively, occasionally call world:Clean(). Note that setting this to true in regular usage may harm performance if you are regularly emptying out and recreating archetypes. */
 	AutoDeleteEmptyArchetypes: boolean
 }
 
@@ -13,6 +13,8 @@ export type Entity = {
 	Id: number
 	/** The debug name associated with this entity */
 	Name?: string
+	/** Set to true on Flag entities. */
+	IsFlag?: true
 }
 type ComponentHooks<Data> = {
 	OnAdd?: (e: Entity, value: Data) => void
@@ -21,6 +23,8 @@ type ComponentHooks<Data> = {
 	OnDelete?: (e: Entity, prev: Data) => void
 }
 export type Component<Data = unknown> = Reconstruct<Entity & { __data: Data }> & ComponentHooks<Data>
+/** Cast an exported component as a ReadonlyComponent to disallow world.Set */
+export type ReadonlyComponent<Data = unknown> = Component<Data> & { __readonly: true }
 
 type FlagHooks = {
 	OnAdd?: (e: Entity) => void
@@ -52,38 +56,47 @@ export class World {
 	/** Added to anything created via Entity */
 	EntityFlag: Flag
 
+	/** Create a new entity.\
+	 * If needed, you can use this as a Component or Flag (simply type-cast it). If you intend to use it as a Flag, set `entity.IsFlag` to `true`.\
+	 * Unlike a Component or Flag, entities created this way have `EntityFlag` set.
+	 * @param name Stored in entity.Name */
 	Entity(name?: string): Entity
+	/** Create a new Component entity. Unlike an Entity, it has `ComponentFlag` set.
+	 * @param name Stored in entity.Name */
 	Component<Data>(name?: string): Component<Data>
+	/** Create a new Flag entity. Unlike an Entity, it has `ComponentFlag`
+	 * @param name Stored in entity.Name */
 	Flag(name?: string): Flag
 
 	Add(e: Entity, C: Flag): void
 	Has(e: Entity, C: Entity): boolean
 	/** Combination of World:Add and associating a value between the entity and component. (Note that an entity can have a component even if its value is undefined, so `value = undefined` is valid.) */
-	Set<Data>(e: Entity, C: Component<Data>, value: Data): void
+	Set<Data>(e: Entity, C: Component<Data> & { __readonly?: never }, value: Data): void
 	/** You can also get the data directly via e[C], so long as you treat it as read-only. */
 	Get<C extends Component<any> | Flag>(e: Entity, C: C): C extends Component<infer Data> ? Data | undefined : undefined
 
-	/* Removes a component from the entity
-	 * Does nothing if the entity doesn't have the component
-	 */
+	/** Removes a component from the entity
+	 * Does nothing if the entity doesn't have the component */
 	Remove<C extends Component<any> | Flag>(e: Entity, C: C): void
 
-	/* Deletes all data from the entity, removes the entity from the world, and - treating `e` like a component - removes any data associated with `e` from all other entities.\
-	 * Of course, if you have references to entities in any of your data, this cannot be deleted automatically - use OnDelete hooks for such components.
-	 */
+	/** Deletes all data from the entity, removes the entity from the world, and - treating `e` like a component - removes any data associated with `e` from all other entities.\
+	 * Of course, if you have references to entities in any of your data, this cannot be deleted automatically - use OnDelete hooks for such components.\
+	 * Note that archetypes referencing `e` will be deleted regardless of `ecs.AutoDeleteEmptyArchetypes` */
 	Delete(e: Entity): void
-
-	/* Returns true while the world is deleting 'e'. */
+	/** Returns true while the world is deleting 'e'. */
 	IsDeleting(e: Entity): boolean
+	/** Removes `C` (and clears any data associated with it) from all other entities.\
+	 * Unlike Delete, `C` itself is not modified and remains usable after the operation.\
+	 * Useful to clear temporary flags/data efficiently; should be used instead of `for e in world:Query(C) do world:Remove(e, C) end` */
+	ClearComponent(C: Component<any> | Flag): void
 
 	/** Iterate over all entities that have the specified components.\
-	 * Note: you may change the entity under iteration in any way you wish, but changing *other* entities results in undefined behaviour.
-	 */
+	 * Note: you may change the entity under iteration in any way you wish, but changing *other* entities results in undefined behaviour. */
 	Query<T extends Entity[]>(...components: T): Query<InferComponentValues<T>>
 
 	/** Remove empty archetypes (good for memory and query performance, but at the cost of having to create them again later, if needed).\
-	 * Not needed if Config.AutoDeleteEmptyArchetypes is true.
-	 */
+	 * Not needed if Config.AutoDeleteEmptyArchetypes is true.\
+	 * Note that archetypes with deleted components are automatically cleaned up in `Delete`. */
 	Cleanup(): void
 	IdToEntity(id: number): Entity | undefined
 
@@ -109,8 +122,7 @@ export class World {
 	OnDelete(C: Flag, onDelete: (e: Entity) => void): void
 	/** Extends any OnDelete behaviour defined for `C`.\
 	 * Triggered after OnRemove if the OnRemove was triggered by world:Delete
-	 * @param onDelete `prev` refers to the value of e[C] *before* the world:Delete call
-	 */
+	 * @param onDelete `prev` refers to the value of e[C] *before* the world:Delete call */
 	OnDelete<Data>(C: Component<Data>, onDelete: (e: Entity, prev: Data) => void): void
 }
 
