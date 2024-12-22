@@ -71,34 +71,84 @@ end
 
 function tests.Query()
 	local x = setupAB2()
+	local w = x.w
 	local iter = {}
-	for e in x.w:Query(x.A, x.B) do
+	for e in w:Query(x.A, x.B) do
 		if iter[e] then error("already iterated over " + tostring(e)) end
 		iter[e] = true
 	end
 	t.falsy(iter[x.e1])
 	t.truthy(iter[x.e2])
 	table.clear(iter)
-	for e in x.w:Query(x.A) do
+	for e in w:Query(x.A) do
 		if iter[e] then error("already iterated over " + tostring(e)) end
 		iter[e] = true
 	end
 	t.truthy(iter[x.e1])
 	t.truthy(iter[x.e2])
-	verifyIntegrity(x.w)
+	verifyIntegrity(w)
+end
+function tests.QueryWith()
+	local x = setupAB2()
+	local w = x.w
+	local iter = {}
+	for e in w:Query(w.EntityFlag):With(x.A, x.B) do
+		if iter[e] then error("already iterated over " + tostring(e)) end
+		iter[e] = true
+	end
+	t.falsy(iter[x.e1])
+	t.truthy(iter[x.e2])
+	table.clear(iter)
+	for e in w:Query(w.EntityFlag):With(x.A) do
+		if iter[e] then error("already iterated over " + tostring(e)) end
+		iter[e] = true
+	end
+	t.truthy(iter[x.e1])
+	t.truthy(iter[x.e2])
+	verifyIntegrity(w)
 end
 function tests.QueryWithout()
 	local x = setupAB2()
+	local w = x.w
 	local iter = {[x.e1] = true}
-	for e in x.w:Query(x.A):Without(x.B) do
+	for e in w:Query(x.A):Without(x.B) do
 		if not iter[e] then error("unexpected entity in iteration " .. tostring(e)) end
 		iter[e] = nil
 	end
 	if next(iter) then error("failed to iterate over anything") end
-	for e in x.w:Query(x.B):Without(x.A) do
+	for e in w:Query(x.B):Without(x.A) do
 		error("unexpected iteration - everything has A")
 	end
-	verifyIntegrity(x.w)
+	verifyIntegrity(w)
+end
+function tests.QueryComplex()
+	-- With(A):Without(B):With(C) regardless of D and there are some entities that fit each possibility
+	local w = new()
+	local A, B, C, D = w:Flag("A"), w:Flag("B"), w:Flag("C"), w:Flag("D")
+	local expected = {} -- [entity] = true/nil
+	-- add an extra entity in A so that :With(C) will grab the smaller one
+	local e = w:Entity("eA")
+	w:Add(e, A)
+	for a = 1, 2 do
+		for b = 1, 2 do
+			for c = 1, 2 do
+				for d = 1, 2 do
+					local e = w:Entity(string.format("e%d,%d,%d,%d", a, b, c, d))
+					if a == 2 then w:Add(e, A) end
+					if b == 2 then w:Add(e, B) end
+					if c == 2 then w:Add(e, C) end
+					if d == 2 then w:Add(e, D) end
+					expected[e] = a == 2 and b == 1 and c == 2 or nil
+				end
+			end
+		end
+	end
+	for e in w:Query(A):Without(B):With(C) do
+		if not expected[e] then error("unexpected entity in iteration " .. e.Name) end
+		expected[e] = nil
+	end
+	if next(expected) then error("failed to iterate over " .. next(expected).Name) end
+	verifyIntegrity(w)
 end
 function tests.QueryAllEntityOrComponent()
 	local w = new()

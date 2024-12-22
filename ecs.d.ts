@@ -35,12 +35,15 @@ export type Flag = Reconstruct<Entity & { IsFlag: true }> & FlagHooks
 
 type Iter<T extends unknown[]> = IterableFunction<LuaTuple<[Entity, ...T]>>
 export type Query<T extends unknown[]> = Iter<T> & {
-	/** Only iterate over entities that have the specified components */
+	/** Require that entities have the specified components. Note that the value of these components will not be returned in the iteration. */
 	With(...components: Entity[]): Query<T>
-	/** Only iterate over entities that do *not* have the specified components */
+	/** Require that entities *not* have the specified components. */
 	Without(...components: Entity[]): Query<T>
-	/** Only iterate over entities in archetypes for which `keep(archetype)` returns true */
-	Custom(keep: (hasComponent: Set<Entity>) => boolean): Query<T>
+	/** Filters out any archetypes (sets of entities) for which `keep(has)` returns false\
+	 * `has` is the set of components that the archetype has.\
+	 * For example, if you wanted to iterate over entities that have component A or B:\
+	 * `query:Custom(function(has) return has[A] or has[B] end)` */
+	Custom(keep: (hasComponent: ReadonlySet<Entity>) => boolean): Query<T>
 }
 
 type InferComponentValue<E> = E extends Component<infer T> ? T : undefined
@@ -92,6 +95,12 @@ export class World {
 
 	/** Iterate over all entities that have the specified components.\
 	 * Note: you may change the entity under iteration in any way you wish, but changing *other* entities results in undefined behaviour. */
+
+	/** Query which components have all the specified components for iteration.\
+	 * You can further modify the query using :With(...), :Without(...), or :Custom(keep)\
+	 * Iterate over a query using `for entity, health in world:Query(Health) do`\
+	 * During iteration, you are allowed to modify the current entity (by adding/removing/changing values or even deleting the entity), but not others (such as by running a query inside of a query).\
+	 * If a system saves a query, you can iterate over it repeatedly (though this is only a tiny performance benefit as most of the work is done when you start iteration). */
 	Query<T extends Entity[]>(...components: T): Query<InferComponentValues<T>>
 
 	/** Remove empty archetypes (good for memory and query performance, but at the cost of having to create them again later, if needed).\

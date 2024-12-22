@@ -11,14 +11,14 @@ DeleteMany 0.0015
 	if no ComponentFlag/EntityFlag, DeleteMany was a bit faster
 DeleteManyWith2Data 0.0028117999900132418
 DeleteManyWith2DataB 0.0025 (uses ClearComponent)
-Query 0.0021
+Query 0.0024
 
 JECS:
 AddMany 0.019296499900519848 (4.4x)
 SpawnMany 0.0019157999195158482 (0.31x)
 DeleteMany 0.002738300012424588 (1.8x)
 DeleteManyWith2Data 0.005780600011348724 (2.05x) (2.3x compared to B)
-Query 0.0024 (1.1x)
+Query 0.0024 (1x)
 ]]
 
 function tests.AddMany()

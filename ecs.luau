@@ -466,26 +466,109 @@ end
 
 local Query = {}
 Query.__index = Query
-local function returnSelf(self) return self end
+local function Query_new(with)
+	return setmetatable({
+		numComponents = #with,
+		with = with, -- List<Component>
+		-- without = nil or List<Component>
+		-- custom = nil or List<fn>
+	}, Query)
+end
+local function extend(list, ...)
+	local n = #list
+	for i = 1, select("#", ...) do
+		list[n + i] = select(i, ...)
+	end
+end
+--- Require that entities have the specified components. Note that the value of these components will not be returned in the iteration.
+function Query:With(...)
+	extend(self.with, ...)
+	return self
+end
+--- Require that entities *not* have the specified components.
+function Query:Without(...)
+	local without = self.without
+	if without then
+		extend(without, ...)
+	else
+		self.without = {...}
+	end
+	return self
+end
+--- Filters out any archetypes (sets of entities) for which `keep(has)` returns false
+--- `has` is the set of components that the archetype has. (Do not modify this value!)
+--- For example, if you wanted to iterate over entities that have component A or B:
+--- `query:Custom(function(has) return has[A] or has[B] end)`
+function Query:Custom(keep)
+	local custom = self.custom
+	if custom then
+		table.insert(custom, keep)
+	else
+		self.custom = {keep}
+	end
+	return self
+end
 local function doNothing() end
-local emptyQuery = table.freeze(setmetatable({
-	With = returnSelf,
-	Without = returnSelf,
-	Custom = returnSelf,
-	-- archetypes = emptyTable,
-	-- components = emptyTable,
-}, {
-	__iter = function() return doNothing end
-}))
 function Query:__iter()
-	-- Initialize
-	local archetypes = self.archetypes
+	-- Find smallest list of archetypes amongst required components
+	local with = self.with
+	local without = self.without
+	local custom = self.custom
+	local best
+	local smallest = math.huge
+	for i, C in with do
+		local num = C.archetypesCount
+		if num == 0 then
+			return doNothing
+		elseif num < smallest then
+			smallest = num
+			best = C
+		end
+	end
+	local archetypes = table.create(smallest)
+	local count = 0
+	-- Now add each potential archetype if it meets all requirements
+	for _, archetype in best.archetypes do
+		if archetype.count == 0 then continue end
+		local invalid = false
+		local has = archetype.HasComponent
+		for _, C in with do
+			if not has[C] then
+				invalid = true
+				break
+			end
+		end
+		if invalid then continue end
+		if without then
+			for _, C in without do
+				if has[C] then
+					invalid = true
+					break
+				end
+			end
+			if invalid then continue end
+		end
+		if custom then
+			for _, keep in custom do
+				if not keep(has) then
+					invalid = true
+					break
+				end
+			end
+			if invalid then continue end
+		end
+		count += 1
+		archetypes[count] = archetype
+	end
+	if count == 0 then return doNothing end
+
+	-- Initialize iteration
 	local archetypeI = 0
 	local archetype
 	local entities = emptyTable
 	-- Cache number of entities in each archetype so that we don't iterate multiple times over moved/added entities
 	local i
-	local entityCounts = table.create(#archetypes)
+	local entityCounts = table.create(count)
 	for i, archetype in archetypes do
 		entityCounts[i] = archetype.count
 	end
@@ -502,7 +585,7 @@ function Query:__iter()
 	-- 	i -= 1
 	-- 	return e
 	-- end
-	local A, B, C, D, E = unpack(self.components)
+	local A, B, C, D, E = unpack(self.with, 1, self.numComponents)
 	if not B then
 		-- return function()
 		-- 	local e = advance()
@@ -580,104 +663,13 @@ function Query:__iter()
 		end
 	end
 end
-function Query:With(...)
-	-- Filter archetypes (each must have the specified components)
-	local archetypes = self.archetypes
-	local count = #archetypes
-	for argI = 1, select("#", ...) do
-		local C = select(argI, ...)
-		-- if any archetype doesn't have C, remove it
-		for i = count, 1, -1 do
-			if archetypes[i].HasComponent[C] then continue end
-			if i == count then
-				archetypes[i] = nil
-			else
-				archetypes[i] = archetypes[count]
-				archetypes[count] = nil
-			end
-			count -= 1
-			if count == 0 then return emptyQuery end
-		end
-	end
-	return self
-end
-function Query:Without(...)
-	-- Filter archetypes (each must *not* have the specified components)
-	local archetypes = self.archetypes
-	local count = #archetypes
-	for argI = 1, select("#", ...) do
-		local C = select(argI, ...)
-		-- if any archetype doesn't have C, remove it
-		for i = count, 1, -1 do
-			if not archetypes[i].HasComponent[C] then continue end
-			if i == count then
-				archetypes[i] = nil
-			else
-				archetypes[i] = archetypes[count]
-				archetypes[count] = nil
-			end
-			count -= 1
-			if count == 0 then return emptyQuery end
-		end
-	end
-	return self
-end
---- Filters out any archetypes for which `keep(archetype)` returns false
-function Query:Custom(keep)
-	local archetypes = self.archetypes
-	-- local has = archetypes.HasComponent
-	local count = #archetypes
-	for i = count, 1, -1 do
-		if keep(archetypes[i].HasComponent) then continue end
-		if i == count then
-			archetypes[i] = nil
-		else
-			archetypes[i] = archetypes[count]
-			archetypes[count] = nil
-		end
-		count -= 1
-		if count == 0 then return emptyQuery end
-	end
-	return self
-end
 
+--- Query which components have all the specified components for iteration. You can further modify the query using :With(...), :Without(...), or :Custom(keep) -- see Query function documentation for more.
+--- Iterate over a query using `for entity, health in world:Query(Health) do`
+--- During iteration, you are allowed to modify the current entity (by adding/removing/changing values or even deleting the entity), but not others (such as by running a query inside of a query).
+--- If a system saves a query, you can iterate over it repeatedly (though this is a tiny performance benefit as most of the work is done when you start iteration).
 function World:Query(...)
-	local components = {...}
-	if not components[1] then error("Must specify at least one component to iterate over", 2) end
-	if components[6] then error("May only iterate over 5 component values at once", 2) end
-	-- find the component with the least number of archetypes
-	local best
-	local smallest = math.huge
-	for i, C in components do
-		local num = C.archetypesCount
-		if num == 0 then
-			return emptyQuery
-		elseif num < smallest then
-			smallest = num
-			best = C
-		end
-	end
-	local archetypes = {}
-	local numArchetypes = 0
-	-- Now filter each archetype in 'best': only accept archetypes that have all required components
-	for _, archetype in best.archetypes do
-		if archetype.count == 0 then continue end
-		local invalid = false
-		for i, C in components do
-			if not archetype.HasComponent[C] then
-				invalid = true
-				break
-			end
-		end
-		if invalid then continue end
-		numArchetypes += 1
-		archetypes[numArchetypes] = archetype
-	end
-	if numArchetypes == 0 then return emptyQuery end
-	return setmetatable({
-		archetypes = archetypes,
-		components = components,
-	}, Query)
+	return Query_new({...})
 end
 
 local function override(t, key, fn)
