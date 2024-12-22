@@ -93,9 +93,7 @@ local function Archetype_disassociateComponents(archetype)
 		if i == count then
 			archetypes[i] = nil
 		else
-			local moving = archetypes[count]
-			archetypes[i] = moving
-			archetypes[count] = nil
+			archetypes[i], archetypes[count] = archetypes[count], nil
 		end
 		C.archetypesCount = count - 1
 	end
@@ -403,9 +401,7 @@ function World:ClearComponent(C, _deleting)
 				if i == numArchetypesCount then
 					archetypes[i] = nil
 				else
-					local moving = archetypes[count]
-					archetypes[i] = moving
-					archetypes[count] = nil
+					archetypes[i], archetypes[numArchetypesCount] = archetypes[numArchetypesCount], nil
 				end
 				numArchetypesCount -= 1
 				C.archetypesCount = numArchetypesCount

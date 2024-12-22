@@ -1,6 +1,6 @@
 {
 	"name": "@rbxts/luau-ecs",
-	"version": "0.2.6",
+	"version": "0.2.7",
 	"description": "Luau based ECS",
 	"main": "ecs.luau",
 	"typings": "ecs.d.ts",
