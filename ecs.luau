@@ -703,4 +703,15 @@ function World:OnDelete(C, onDelete)
 	override(C, "OnDelete", onDelete)
 end
 
+-- Typescript conveniences:
+function World:Readonly(C) return C end
+World.ReadonlyComponent = world.Component
+World.ReadonlyFlag = World.Flag
+
+World.Protected = World.Readonly
+World.ProtectedComponent = world.Component
+World.ProtectedFlag = World.Flag
+
+World.ClearProtection = World.Readonly
+
 return ecs

@@ -25,6 +25,9 @@ type ComponentHooks<Data> = {
 export type Component<Data = unknown> = Reconstruct<Entity & { __data: Data }> & ComponentHooks<Data>
 /** Cast an exported component as a ReadonlyComponent to disallow world.Set */
 export type ReadonlyComponent<Data = unknown> = Component<Data> & { __readonly: true }
+/** Cast an exported component as a ProtectedComponent to disallow world.Add, Set, and Remove */
+export type ProtectedComponent<Data = unknown> = Component<Data> & { __protected: true }
+export type ProtectedFlag = Flag & { __protected: true }
 
 type FlagHooks = {
 	OnAdd?: (e: Entity) => void
@@ -71,16 +74,16 @@ export class World {
 	 * @param name Stored in entity.Name */
 	Flag(name?: string): Flag
 
-	Add(e: Entity, C: Flag): void
+	Add(e: Entity, C: Flag & { __protected?: never }): void
 	Has(e: Entity, C: Entity): boolean
 	/** Combination of World:Add and associating a value between the entity and component. (Note that an entity can have a component even if its value is undefined, so `value = undefined` is valid.) */
-	Set<Data>(e: Entity, C: Component<Data> & { __readonly?: never }, value: Data): void
+	Set<Data>(e: Entity, C: Component<Data> & { __readonly?: never, __protected?: never }, value: Data): void
 	/** You can also get the data directly via e[C], so long as you treat it as read-only. */
 	Get<C extends Component<any> | Flag>(e: Entity, C: C): C extends Component<infer Data> ? Data | undefined : undefined
 
 	/** Removes a component from the entity
 	 * Does nothing if the entity doesn't have the component */
-	Remove<C extends Component<any> | Flag>(e: Entity, C: C): void
+	Remove<C extends (Component<any> | Flag) & { __protected?: never }>(e: Entity, C: C): void
 
 	/** Deletes all data from the entity, removes the entity from the world, and - treating `e` like a component - removes any data associated with `e` from all other entities.\
 	 * Of course, if you have references to entities in any of your data, this cannot be deleted automatically - use OnDelete hooks for such components.\
@@ -133,6 +136,21 @@ export class World {
 	 * Triggered after OnRemove if the OnRemove was triggered by world:Delete
 	 * @param onDelete `prev` refers to the value of e[C] *before* the world:Delete call */
 	OnDelete<Data>(C: Component<Data>, onDelete: (e: Entity, prev: Data) => void): void
+
+	/** Casts the component as Readonly, disallowing world.Set */
+	Readonly<Data>(C: Component<Data>): ReadonlyComponent<Data>
+	/** Creates a component casted as Readonly, disallowing world.Set. */
+	ReadonlyComponent<Data>(name?: string): ReadonlyComponent<Data>
+
+	/** Casts the component as Protected, disallowing world.Add, Set, and Remove */
+	Protected<C extends Component<any> | Flag>(C: C): C & { __protected: true }
+	/** Creates a component casted as Protected, disallowing world.Add, Set, and Remove */
+	ProtectedComponent<Data>(name?: string): ProtectedComponent<Data>
+	/** Create a flag casted as Protected, disallowing world.Add and Remove */
+	ProtectedFlag(name?: string): ProtectedFlag
+
+	/** Clear the Readonly/Protected casting of a component. */
+	ClearProtection<C extends Component<any> | Flag>(C: C): C extends Component<any> ? Component<C["__data"]> : Flag
 }
 
 /** Returns true if it's an entity/component/flag that hasn't been deleted */
