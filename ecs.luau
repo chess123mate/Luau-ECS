@@ -691,7 +691,7 @@ function World:OnChange(C, onChange)
 end
 function World:OnNewValue(C, onNewValue)
 	override(C, "OnChange", function(e, value, prev)
-		if value then
+		if value ~= nil then
 			onNewValue(e, value, prev)
 		end
 	end)
