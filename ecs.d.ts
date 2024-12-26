@@ -139,18 +139,9 @@ export class World {
 
 	/** Casts the component as Readonly, disallowing world.Set */
 	Readonly<Data>(C: Component<Data>): ReadonlyComponent<Data>
-	/** Creates a component casted as Readonly, disallowing world.Set. */
-	ReadonlyComponent<Data>(name?: string): ReadonlyComponent<Data>
 
 	/** Casts the component as Protected, disallowing world.Add, Set, and Remove */
 	Protected<C extends Component<any> | Flag>(C: C): C & { __protected: true }
-	/** Creates a component casted as Protected, disallowing world.Add, Set, and Remove */
-	ProtectedComponent<Data>(name?: string): ProtectedComponent<Data>
-	/** Create a flag casted as Protected, disallowing world.Add and Remove */
-	ProtectedFlag(name?: string): ProtectedFlag
-
-	/** Clear the Readonly/Protected casting of a component. */
-	ClearProtection<C extends Component<any> | Flag>(C: C): C extends Component<any> ? Component<C["__data"]> : Flag
 }
 
 /** Returns true if it's an entity/component/flag that hasn't been deleted */

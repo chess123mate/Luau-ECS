@@ -705,13 +705,6 @@ end
 
 -- Typescript conveniences:
 function World:Readonly(C) return C end
-World.ReadonlyComponent = World.Component
-World.ReadonlyFlag = World.Flag
-
 World.Protected = World.Readonly
-World.ProtectedComponent = World.Component
-World.ProtectedFlag = World.Flag
-
-World.ClearProtection = World.Readonly
 
 return ecs
