@@ -138,10 +138,10 @@ export class World {
 	OnDelete<Data>(C: Component<Data>, onDelete: (e: Entity, prev: Data) => void): void
 
 	/** Casts the component as Readonly, disallowing world.Set */
-	Readonly<Data>(C: Component<Data>): ReadonlyComponent<Data>
+	Readonly: <Data>(C: Component<Data>) => ReadonlyComponent<Data>
 
 	/** Casts the component as Protected, disallowing world.Add, Set, and Remove */
-	Protected<C extends Component<any> | Flag>(C: C): C & { __protected: true }
+	Protected: <C extends Component<any> | Flag>(C: C) => C & { __protected: true }
 }
 
 /** Returns true if it's an entity/component/flag that hasn't been deleted */

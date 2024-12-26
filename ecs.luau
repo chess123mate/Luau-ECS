@@ -704,7 +704,7 @@ function World:OnDelete(C, onDelete)
 end
 
 -- Typescript conveniences:
-function World:Readonly(C) return C end
+function World.Readonly(C) return C end
 World.Protected = World.Readonly
 
 return ecs
