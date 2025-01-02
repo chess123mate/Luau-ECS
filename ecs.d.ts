@@ -23,11 +23,11 @@ type ComponentHooks<Data> = {
 	OnDelete?: (e: Entity, prev: Data) => void
 }
 export type Component<Data = unknown> = Reconstruct<Entity & { __data: Data }> & ComponentHooks<Data>
-/** Cast an exported component as a ReadonlyComponent to disallow world.Set */
-export type ReadonlyComponent<Data = unknown> = Component<Data> & { __readonly: true }
 /** Cast an exported component as a ProtectedComponent to disallow world.Add, Set, and Remove */
 export type ProtectedComponent<Data = unknown> = Component<Data> & { __protected: true }
 export type ProtectedFlag = Flag & { __protected: true }
+export type UnprotectedComponent<Data = unknown> = Reconstruct<Entity & { __data: Data, __protected?: never }> & ComponentHooks<Data>
+export type UnprotectedFlag = Flag & { __protected?: never }
 
 type FlagHooks = {
 	OnAdd?: (e: Entity) => void
@@ -77,7 +77,7 @@ export class World {
 	Add(e: Entity, C: Flag & { __protected?: never }): void
 	Has(e: Entity, C: Entity): boolean
 	/** Combination of World:Add and associating a value between the entity and component. (Note that an entity can have a component even if its value is undefined, so `value = undefined` is valid.) */
-	Set<Data>(e: Entity, C: Component<Data> & { __readonly?: never, __protected?: never }, value: Data): void
+	Set<Data>(e: Entity, C: Component<Data> & { __protected?: never }, value: Data): void
 	/** You can also get the data directly via e[C], so long as you treat it as read-only. */
 	Get<C extends Component<any> | Flag>(e: Entity, C: C): C extends Component<infer Data> ? Data | undefined : undefined
 
@@ -136,9 +136,6 @@ export class World {
 	 * Triggered after OnRemove if the OnRemove was triggered by world:Delete
 	 * @param onDelete `prev` refers to the value of e[C] *before* the world:Delete call */
 	OnDelete<Data>(C: Component<Data>, onDelete: (e: Entity, prev: Data) => void): void
-
-	/** Casts the component as Readonly, disallowing world.Set */
-	Readonly: <Data>(C: Component<Data>) => ReadonlyComponent<Data>
 
 	/** Casts the component as Protected, disallowing world.Add, Set, and Remove */
 	Protected: <C extends Component<any> | Flag>(C: C) => C & { __protected: true }

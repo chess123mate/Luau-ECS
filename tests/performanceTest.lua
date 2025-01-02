@@ -4,20 +4,21 @@ return function(tests, t)
 local ecs = require(game.ReplicatedStorage.ecs)
 ecs.AutoDeleteEmptyArchetypes = false
 --[[
+Note: numbers do not seem to be altered when running ECS with !native option; perhaps it isn't compiled when required by code in TestService?
 ECS:
-AddMany 0.004341599997133017
-SpawnMany 0.006160699995234609
-DeleteMany 0.0015
+AddMany 0.0037
+SpawnMany 0.0047
+DeleteMany 0.00115
 	if no ComponentFlag/EntityFlag, DeleteMany was a bit faster
-DeleteManyWith2Data 0.0028117999900132418
-DeleteManyWith2DataB 0.0025 (uses ClearComponent)
+DeleteManyWith2Data 0.0021
+DeleteManyWith2DataB 0.0017 (uses ClearComponent)
 Query 0.0024
 
 JECS:
-AddMany 0.019296499900519848 (4.4x)
-SpawnMany 0.0019157999195158482 (0.31x)
-DeleteMany 0.002738300012424588 (1.8x)
-DeleteManyWith2Data 0.005780600011348724 (2.05x) (2.3x compared to B)
+AddMany 0.019296499900519848 (5.2x)
+SpawnMany 0.0019157999195158482 (0.4x)
+DeleteMany 0.002738300012424588 (2.4x)
+DeleteManyWith2Data 0.005780600011348724 (2.75x) (3.4x compared to B)
 Query 0.0024 (1x)
 ]]
 

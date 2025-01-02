@@ -1,7 +1,10 @@
+--!native
 local ecs = {
 	-- Global config
 	--- Defaults to false. Might make sense to set to `true` to save on memory if you have numerous combinations of components/flags that are often only used briefly. (For example, a scenario where you have 20 flags and an entity may randomly have none or all would create 2^20 archetypes.) Alternatively, occasionally call world:Clean(). Note that setting this to true in regular usage may harm performance if you are regularly emptying out and recreating archetypes.
 	AutoDeleteEmptyArchetypes = false,
+	--- Set to false to disable entities from having their Name field be set to their Id field by default.
+	EntityNameDefault = true,
 }
 ecs.Config = ecs -- TS support
 --- Returns true if it's an entity/component/flag that hasn't been deleted
@@ -116,7 +119,7 @@ local function World_newEntity(self, name)
 	self.nextId = nextId + 1
 	local e = {
 		Id = nextId,
-		Name = name,
+		Name = name or if ecs.EntityNameDefault then nextId else nil,
 		archetypes = {}, -- list of archetypes that the entity (as a component) is in
 		archetypesCount = 0,
 	}
