@@ -275,13 +275,11 @@ function World:CreateEntity(name, initFn)
 
 	-- Run hooks
 	for _, C in componentList do
+		local value = e[C]
 		local onAdd = C.OnAdd
-		if onAdd then onAdd(e) end
+		if onAdd then onAdd(e, value) end
 		local onChange = C.OnChange
-		if onChange then
-			local value = e[C]
-			if value ~= nil then onChange(e, value) end
-		end
+		if onChange and value ~= nil then onChange(e, value) end
 	end
 	return e
 end
