@@ -59,6 +59,11 @@ type InferComponentValues<A extends Entity[]> = {
 	[K in keyof A]: InferComponentValue<A[K]>
 }
 
+/** The `add` function sent in `CreateEntity` */
+export type Init_add = (C: Flag) => void
+/** The `set` function sent in `CreateEntity` */
+export type Init_set = <Data>(C: Component<Data>, value: Data) => void
+
 export class World {
 	constructor()
 
@@ -78,6 +83,13 @@ export class World {
 	/** Create a new Flag entity. Unlike an Entity, it has `ComponentFlag` set. Unlike Components, Flags never have data associated with them.
 	 * @param name Stored in entity.Name */
 	Flag(name?: string): Flag
+
+	/** Efficiently create an entity with tags/components.\
+	 * Hooks will be invoked all at once *after* the entity has all the specified flags and components.\
+	 * (This method can run in 33% - 75% of the time as using `Entity`, depending on the number of components/flags you add.)
+	 * @param initFn is expected to add any flags and set any components that the entity should have. */
+	CreateEntity(name: string, initFn: (add: (C: Flag) => void, set: <Data>(C: Component<Data>, value: Data) => void) => void): Entity
+	CreateEntity(initFn: (add: (C: Flag) => void, set: <Data>(C: Component<Data>, value: Data) => void) => void): Entity
 
 	Add(e: Entity, C: Flag): void
 	Has(e: Entity, C: Entity): boolean

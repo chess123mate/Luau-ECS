@@ -50,7 +50,6 @@ for r = 1, rounds do
 	for _, e in es do
 		world:Delete(e)
 	end
-	first = false
 	local dt = os.clock() - s
 	print(dt)
 	total += dt

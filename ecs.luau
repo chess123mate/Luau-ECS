@@ -114,7 +114,7 @@ local deletingArchetype = table.freeze({
 local World = {}
 ecs.World = World
 World.__index = World
-local function World_newEntity(self, name)
+local function World_newEntityNoArchetype(self, name)
 	local nextId = self.nextId
 	self.nextId = nextId + 1
 	local e = {
@@ -124,6 +124,10 @@ local function World_newEntity(self, name)
 		archetypesCount = 0,
 	}
 	self.idToEntity[nextId] = e
+	return e
+end
+local function World_newEntity(self, name)
+	local e = World_newEntityNoArchetype(self, name)
 	Archetype_addEntity(self.emptyArchetype, e)
 	return e
 end
@@ -226,6 +230,61 @@ local function World_removeComponentFromEntityArchetype(self, e, C)
 	end
 end
 
+--- Efficiently create an entity with tags/components.
+--- initFn : function(add, set) is expected to add any flags and set any components that the entity should have.
+--- Hooks will be invoked all at once *after* the entity has all the specified flags and components.
+--- (This method can run in 33% - 75% of the time as using `Entity`, depending on the number of components/flags you add.)
+function World:CreateEntity(name, initFn)
+	if not initFn then initFn = name; name = nil end -- shift arguments
+
+	local e = World_newEntityNoArchetype(self, name)
+	local components = {}
+	local componentList = {}
+	local hasComponent = {}
+	for _, C in componentList do
+		hasComponent[C] = true
+	end
+	local n = 0
+	local function add(Flag)
+		if hasComponent[Flag] then return end
+		hasComponent[Flag] = true
+		local s = tostring(validateComponent(Flag).Id)
+		table.insert(components, findInsertIndex(components, s), s)
+		n += 1
+		componentList[n] = Flag
+	end
+	local function set(C, value)
+		e[C] = value
+		if hasComponent[C] then return end
+		hasComponent[C] = true
+		local s = tostring(validateComponent(C).Id)
+		table.insert(components, findInsertIndex(components, s), s)
+		n += 1
+		componentList[n] = C
+	end
+	initFn(add, set)
+
+	-- Add to correct archetype
+	local key = table.concat(components, "_")
+	local archetype = self.keyToArchetype[key]
+	if not archetype then
+		World_newArchetypeFor(self, e, key, components, hasComponent)
+	else
+		Archetype_addEntity(archetype, e)
+	end
+
+	-- Run hooks
+	for _, C in componentList do
+		local onAdd = C.OnAdd
+		if onAdd then onAdd(e) end
+		local onChange = C.OnChange
+		if onChange then
+			local value = e[C]
+			if value ~= nil then onChange(e, value) end
+		end
+	end
+	return e
+end
 function World:Add(e, C)
 	local archetype = (e or error("Missing entity argument in World:Add", 2)).archetype or error("Argument #1 is not an entity or was already deleted", 2)
 	if archetype.HasComponent[C] then return end -- already added
