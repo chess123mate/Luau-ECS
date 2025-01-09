@@ -119,7 +119,7 @@ local function World_newEntityNoArchetype(self, name)
 	self.nextId = nextId + 1
 	local e = {
 		Id = nextId,
-		Name = name or if ecs.EntityNameDefault then nextId else nil,
+		Name = name or if ecs.EntityNameDefault then tostring(nextId) else nil,
 		archetypes = {}, -- list of archetypes that the entity (as a component) is in
 		archetypesCount = 0,
 	}
