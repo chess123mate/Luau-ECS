@@ -33,9 +33,9 @@ Components can be used interchangeably with entities (they are identical interna
 Archetype = {
 	entities = List<Entity>
 	count (of entities)
-	components = List<Component>
+	components = List<tostring(Component.Id)>
 	HasComponent = Set<Component>
-	key = table.concat(component Ids converted to strings) -- note that this means metatables with __tostring should never be applied to components
+	key = table.concat(tostring(Component.Id), "_")
 }
 ]]
 
@@ -511,6 +511,13 @@ function World:ClearComponent(C, _deleting)
 	]]
 end
 
+--- Iterates over all components that an entity has.
+--- Recommended mainly for debugging and entity serialization.
+--- For example: `for C in world:IterComponents(e) do`
+function World:IterComponents(e)
+	return e.archetype.HasComponent
+end
+
 --- Remove empty archetypes (good for memory and query performance, but at the cost of having to create them again later, if needed).
 --- Not needed if Config.AutoDeleteEmptyArchetypes is true.
 --- Note that archetypes with deleted components are automatically cleaned up in `Delete`.
@@ -568,9 +575,7 @@ function Query:Custom(keep)
 	end
 	return self
 end
-local function doNothing() end
-function Query:__iter()
-	-- Find smallest list of archetypes amongst required components
+local function Query_getArchetypes(self) -- returns count, archetypes
 	local with = self.with
 	local without = self.without
 	local custom = self.custom
@@ -579,14 +584,14 @@ function Query:__iter()
 	for i, C in with do
 		local num = C.archetypesCount
 		if num == 0 then
-			return doNothing
+			return 0, emptyTable
 		elseif num < smallest then
 			smallest = num
 			best = C
 		end
 	end
 	local archetypes = table.create(smallest)
-	local count = 0
+	local count = 0 -- # of archetypes
 	-- Now add each potential archetype if it meets all requirements
 	for _, archetype in best.archetypes do
 		if archetype.count == 0 then continue end
@@ -620,6 +625,22 @@ function Query:__iter()
 		count += 1
 		archetypes[count] = archetype
 	end
+	return count, archetypes
+end
+
+--- Counts how many entities are in the query. (Faster than iterating over them yourself.)
+function Query:Count()
+	local num, archetypes = Query_getArchetypes(self)
+	if num == 0 then return 0 end
+	local count = 0
+	for i, archetype in archetypes do
+		count += archetype.count
+	end
+	return count
+end
+local function doNothing() end
+function Query:__iter()
+	local count, archetypes = Query_getArchetypes(self)
 	if count == 0 then return doNothing end
 
 	-- Initialize iteration

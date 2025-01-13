@@ -52,6 +52,8 @@ export type Query<T extends unknown[]> = Iter<T> & {
 	 * For example, if you wanted to iterate over entities that have component A or B:\
 	 * `query:Custom(function(has) return has[A] or has[B] end)` */
 	Custom(keep: (hasComponent: ReadonlySet<Entity>) => boolean): Query<T>
+	/** Counts how many entities are in the query. (Faster than iterating over them yourself.) */
+	Count(): number
 }
 
 type InferComponentValue<E> = E extends AnyComponent<infer T> ? T : undefined
@@ -112,6 +114,14 @@ export class World {
 	 * Unlike Delete, `C` itself is not modified and remains usable after the operation.\
 	 * Useful to clear temporary flags/data efficiently; should be used instead of `for e in world:Query(C) do world:Remove(e, C) end` */
 	ClearComponent(C: AnyComponent<any> | AnyFlag): void
+
+	/** Iterates over all components that an entity has.\
+	 * Recommended mainly for debugging and entity serialization.\
+	 * @example ```
+	 * for (const C of world.IterComponents(e)) {}
+	 * ```
+	 * Note: Do not rely on the return type being a ReadonlySet - this is only meant for iteration */
+	IterComponents(e: Entity): ReadonlySet<Component<unknown> | Flag>
 
 	/** Query which components have all the specified components for iteration.\
 	 * You can further modify the query using :With(...), :Without(...), or :Custom(keep)\

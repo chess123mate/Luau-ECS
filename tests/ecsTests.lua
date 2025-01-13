@@ -140,6 +140,35 @@ function tests.QueryWithout()
 	end
 	verifyIntegrity(w)
 end
+function tests.QueryCount()
+	local w = new()
+	local A = w:Flag("A")
+	local B = w:Flag("B")
+	local C = w:Flag("C")
+	w:CreateEntity(function(add) add(A) end)
+	for i = 1, 2 do w:CreateEntity(function(add) add(A) add(B) end) end
+	for i = 1, 2 do w:CreateEntity(function(add) add(A) add(C) end) end
+	w:CreateEntity(function(add) add(B) end)
+
+	t.equals(w:Query(A):Count(), 5)
+	t.equals(w:Query(A):Without(B):Count(), 3)
+	t.equals(w:Query(B):Count(), 3)
+	t.equals(w:Query():With(A, B):Count(), 2)
+
+	verifyIntegrity(w)
+end
+function tests.IterComponents()
+	local w = new()
+	local A = w:Flag("A")
+	local B = w:Flag("B")
+	local iter = {[A] = true, [B] = true}
+	for C in w:IterComponents(w:CreateEntity(function(add) add(A) add(B) end)) do
+		if not iter[C] then error("unexpected component in iteration " .. tostring(C)) end
+		iter[C] = nil
+	end
+	if next(iter) then error("failed to iterate over all desired components") end
+	verifyIntegrity(w)
+end
 function tests.QueryComplex()
 	-- With(A):Without(B):With(C) regardless of D and there are some entities that fit each possibility
 	local w = new()
