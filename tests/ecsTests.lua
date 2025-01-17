@@ -375,7 +375,7 @@ function tests.Hooks()
 	update(nil)
 	t.equals(changed, 3)
 	w:Delete(e1)
-	w:Delete(e1) -- todo: delete this line if this is an error (but point is to make sure OnRemove won't be called multiple times)
+	w:Delete(e1) -- make sure OnRemove won't be called multiple times
 	t.equals(added, 1)
 	t.equals(removed, 1, "removed should only trigger once, when component removed entirely")
 	t.equals(changed, 3, "changed should not trigger for deletion when value was nil")

@@ -342,7 +342,7 @@ function World:Delete(e)
 	-- Note: if this next line returns, we're already deleting 'e'
 	if World_removeEntityFromCurrentArchetype(self, e) then return end -- doesn't clear e.archetype
 	local components = e.archetype.HasComponent
-	e.archetype = deletingArchetype
+	e.archetype = deletingArchetype -- in addition to preventing us from trying to delete 'e' a 2nd time, prevents components from being added to/removed from it
 	for C in components do
 		if C.IsFlag then
 			local onRemove = C.OnRemove
