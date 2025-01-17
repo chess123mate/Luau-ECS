@@ -21,12 +21,12 @@ type ComponentHooks<Data> = {
 	OnDelete?: (e: Entity, prev: Data) => void
 }
 /** Any component (protected or not). Useful if you just want to receive a component for world.Get. */
-export type AnyComponent<Data = unknown> = Reconstruct<Entity & { IsFlag: never, __data: Data }> & ComponentHooks<Data>
+export type AnyComponent<Data = unknown> = Reconstruct<Entity & { IsFlag: undefined, __data: Data }> & ComponentHooks<Data>
 /** Cast an exported component as a ProtectedComponent to disallow world.Add, Set, and Remove.\
  * Use this when you want to enforce that other code modify the data in a particular way. */
-export type ProtectedComponent<Data = unknown> = Reconstruct<Entity & { IsFlag: never, __data: Data, __protected: true }> & ComponentHooks<Data>
+export type ProtectedComponent<Data = unknown> = Reconstruct<Entity & { IsFlag: undefined, __data: Data, __protected: true }> & ComponentHooks<Data>
 /** An unprotected component (i.e. you can use in world.Add, Set, and Remove). */
-export type Component<Data = unknown> = Reconstruct<Entity & { IsFlag: never, __data: Data, __protected: never }> & ComponentHooks<Data>
+export type Component<Data = unknown> = Reconstruct<Entity & { IsFlag: undefined, __data: Data, __protected: never }> & ComponentHooks<Data>
 
 type FlagHooks = {
 	OnAdd?: (e: Entity) => void
