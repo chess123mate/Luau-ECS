@@ -262,6 +262,7 @@ function World:CreateEntity(name, initFn)
 		n += 1
 		componentList[n] = C
 	end
+	add(self.EntityFlag)
 	initFn(add, set)
 
 	-- Add to correct archetype
