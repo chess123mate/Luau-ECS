@@ -97,8 +97,10 @@ export class World {
 	Has(e: Entity, C: Entity): boolean
 	/** Combination of World:Add and associating a value between the entity and component. (Note that an entity can have a component even if its value is undefined, so `value = undefined` is valid.) */
 	Set<Data>(e: Entity, C: Component<Data>, value: Data): void
-	/** You can also get the data directly via e[C], so long as you treat it as read-only. */
-	Get<C extends AnyComponent<any> | Flag>(e: Entity, C: C): C extends AnyComponent<infer Data> ? Data | undefined : undefined
+	/** Get the value associated with a component.\
+	 * You are allowed to call Get(e, flag), but since this will always return `undefined` it is usually a bug (you usually want to check if `Has`, not `Get`).\
+	 * You can also get the data directly via e[C], so long as you treat it as read-only. */
+	Get<Data>(e: Entity, C: AnyComponent<Data>): Data
 
 	/** Removes a component from the entity
 	 * Does nothing if the entity doesn't have the component */
@@ -110,6 +112,9 @@ export class World {
 	Delete(e: Entity): void
 	/** Returns true while the world is deleting 'e'. */
 	IsDeleting(e: Entity): boolean
+	/** Returns true if 'e' has been deleted.\
+	Ideally you shouldn't need this, aside from its use in debugging. Typically, if you have a reference to an entity (that could have been deleted) in a component, you should use an OnDelete hook to clean it up. */
+	IsDeleted(e: Entity): boolean
 	/** Removes `C` (and clears any data associated with it) from all other entities.\
 	 * Unlike Delete, `C` itself is not modified and remains usable after the operation.\
 	 * Useful to clear temporary flags/data efficiently; should be used instead of `for e in world:Query(C) do world:Remove(e, C) end` */

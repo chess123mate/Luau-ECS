@@ -373,8 +373,13 @@ end
 
 --- Returns true while the world is deleting 'e'.
 function World:IsDeleting(e)
-	local archetype = (e or error("Missing entity argument in World:IsDeleting", 2)).archetype
-	return archetype == deletingArchetype
+	return deletingArchetype == (e or error("Missing entity argument in World:IsDeleting", 2)).archetype
+end
+
+--- Returns true if 'e' has been deleted.
+--- Ideally you shouldn't need this, aside from its use in debugging. Typically, if you have a reference to an entity (that could have been deleted) in a component, you should use an OnDelete hook to clean it up.
+function World:IsDeleted(e)
+	return not (e or error("Missing entity argument in World:IsDeleted", 2)).archetype
 end
 
 local spareTable = {}
@@ -511,11 +516,15 @@ function World:ClearComponent(C, _deleting)
 	]]
 end
 
+local noArchetype = {
+	HasComponent = emptyTable
+}
+
 --- Iterates over all components that an entity has.
 --- Recommended mainly for debugging and entity serialization.
 --- For example: `for C in world:IterComponents(e) do`
 function World:IterComponents(e)
-	return e.archetype.HasComponent
+	return (e.archetype or noArchetype).HasComponent
 end
 
 --- Remove empty archetypes (good for memory and query performance, but at the cost of having to create them again later, if needed).
