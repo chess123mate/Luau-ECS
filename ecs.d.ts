@@ -9,11 +9,13 @@ export const Config: {
 export type Entity = {
 	/** The id (unique across the entire world) */
 	Id: number
-	/** The debug name associated with this entity */
+	/** The debug name associated with this entity. If `EntityNameDefault` is true, this will equal `tostring(Id)` by default. */
 	Name?: string
-	/** Set to true on Flag entities. */
+	/** Set to true on Flag entities.\
+	 * If you are using an entity as a flag component, setting this to true has performance benefits. */
 	IsFlag?: true
 }
+
 type ComponentHooks<Data> = {
 	OnAdd?: (e: Entity, value: Data) => void
 	OnChange?: (e: Entity, value: Data, prev: Data) => void
@@ -71,7 +73,7 @@ export class World {
 
 	/** Added to anything created via Component or Flag */
 	ComponentFlag: Flag
-	/** Added to anything created via Entity */
+	/** Added to anything created via Entity or CreateEntity */
 	EntityFlag: Flag
 
 	/** Create a new entity.\
@@ -89,7 +91,18 @@ export class World {
 	/** Efficiently create an entity with tags/components.\
 	 * Hooks will be invoked all at once *after* the entity has all the specified flags and components.\
 	 * (This method can run in 33% - 75% of the time as using `Entity`, depending on the number of components/flags you add.)
-	 * @param initFn is expected to add any flags and set any components that the entity should have. */
+	 * @param initFn is expected to add any flags and set any components that the entity should have.
+	 * @example ```
+	 * world.CreateEntity((add, set) => {
+	 * 	add(flag)
+	 * 	set(component, 0)
+	 * })
+	 * // If you want to create a helper function, use the following function signature:
+	 * function setup(add: Init_add, set: Init_set){
+	 * 	add(flag)
+	 * 	set(component, 0)
+	 * }
+	 * ``` */
 	CreateEntity(name: string, initFn: (add: (C: Flag) => void, set: <Data>(C: Component<Data>, value: Data) => void) => void): Entity
 	CreateEntity(initFn: (add: (C: Flag) => void, set: <Data>(C: Component<Data>, value: Data) => void) => void): Entity
 
