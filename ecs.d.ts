@@ -113,7 +113,7 @@ export class World {
 	/** Get the value associated with a component.\
 	 * You are allowed to call Get(e, flag), but since this will always return `undefined` it is usually a bug (you usually want to check if `Has`, not `Get`).\
 	 * You can also get the data directly via e[C], so long as you treat it as read-only. */
-	Get<Data>(e: Entity, C: AnyComponent<Data>): Data
+	Get<Data>(e: Entity, C: AnyComponent<Data>): Data | undefined
 
 	/** Removes a component from the entity
 	 * Does nothing if the entity doesn't have the component */
