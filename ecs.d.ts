@@ -115,7 +115,7 @@ export class World {
 	 * You can also get the data directly via e[C], so long as you treat it as read-only. */
 	Get<Data>(e: Entity, C: AnyComponent<Data>): Data | undefined
 
-	/** Removes a component from the entity
+	/** Removes a component from the entity\
 	 * Does nothing if the entity doesn't have the component */
 	Remove<C extends (Component<any> | Flag)>(e: Entity, C: C): void
 
@@ -170,6 +170,10 @@ export class World {
 	 * Triggered when C is removed from an entity. */
 	OnRemove(C: AnyFlag, onRemove: (e: Entity) => void): void
 	OnRemove<Data>(C: AnyComponent<Data>, onRemove: (e: Entity, prev: Data) => void): void
+
+	/** Extends both OnAdd and OnRemove behaviour for `C`.
+	 * @param added `true` when called from OnAdd, `false` when called from OnRemove */
+	OnAddRemove(C: AnyFlag | AnyComponent<any>, onAddRemove: (e: Entity, added: boolean) => void): void
 
 	/** Extends any OnDelete behaviour defined for `C`.\
 	 * OnDelete is triggered after OnRemove if the OnRemove was triggered by world:Delete */

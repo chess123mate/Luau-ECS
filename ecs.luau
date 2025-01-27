@@ -790,6 +790,14 @@ end
 function World:OnRemove(C, onRemove)
 	override(C, "OnRemove", onRemove)
 end
+function World:OnAddRemove(C, onAddRemove)
+	override(C, "OnAdd", function(e)
+		onAddRemove(e, true)
+	end)
+	override(C, "OnRemove", function(e)
+		onAddRemove(e, false)
+	end)
+end
 function World:OnDelete(C, onDelete)
 	override(C, "OnDelete", onDelete)
 end
