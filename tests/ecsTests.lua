@@ -69,6 +69,38 @@ function tests.CreateEntity()
 	t.equals(w:Get(e2, B), "e2b")
 	verifyIntegrity(w)
 end
+function tests.AdjustEntity()
+	local w = new()
+	local A = w:Component()
+	local B = w:Component()
+	local C = w:Flag()
+	local D = w:Component()
+	local e1 = w:Entity("e1")
+	w:AdjustEntity(e1, function(add, set, remove)
+		set(A, "e1a 1")
+		set(B, "tmp")
+		add(C)
+	end)
+	local e2 = w:Entity("e2")
+	w:AdjustEntity(e2, function(add, set, remove)
+		set(B, "e2b 1")
+		remove(B)
+		set(B, "e2b 2")
+		set(A, "e2a")
+	end)
+	w:AdjustEntity(e1, function(add, set, remove)
+		remove(B)
+		set(A, "e1a 2")
+		set(D, "tmp")
+		remove(D)
+	end)
+	t.equals(w:Get(e1, A), "e1a 2")
+	t.truthy(w:Has(e1, C), "e1 C")
+	t.equals(w:Get(e2, A), "e2a")
+	t.equals(w:Get(e2, B), "e2b 2")
+	t.falsy(w:Has(e1, D), "e1 !D")
+	verifyIntegrity(w)
+end
 
 local function setupAB2()
 	local w = new()
@@ -161,9 +193,9 @@ function tests.IterComponents()
 	local w = new()
 	local A = w:Flag("A")
 	local B = w:Flag("B")
-	local iter = {[A] = true, [B] = true}
+	local iter = {[A] = true, [B] = true, [w.EntityFlag] = true}
 	for C in w:IterComponents(w:CreateEntity(function(add) add(A) add(B) end)) do
-		if not iter[C] then error("unexpected component in iteration " .. tostring(C)) end
+		if not iter[C] then error("unexpected component in iteration " .. (C.Name or "?") .. " " .. tostring(C)) end
 		iter[C] = nil
 	end
 	if next(iter) then error("failed to iterate over all desired components") end

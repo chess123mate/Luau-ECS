@@ -106,6 +106,11 @@ export class World {
 	CreateEntity(name: string, initFn: (add: (C: Flag) => void, set: <Data>(C: Component<Data>, value: Data) => void) => void): Entity
 	CreateEntity(initFn: (add: (C: Flag) => void, set: <Data>(C: Component<Data>, value: Data) => void) => void): Entity
 
+	/** Same as CreateEntity for existing entities.\
+	 * Note: For hooks, only the translation from the starting state into the final state will be run. Thus, removing a flag and then adding it again (in the same AdjustEntity call) will not trigger any hooks.\
+	 * Returns the entity. */
+	AdjustEntity(e: Entity, adjust: (add: Init_add, set: Init_set, remove: Init_add) => void): Entity
+
 	Add(e: Entity, C: Flag): void
 	Has(e: Entity, C: Entity): boolean
 	/** Combination of World:Add and associating a value between the entity and component. (Note that an entity can have a component even if its value is undefined, so `value = undefined` is valid.) */
@@ -117,7 +122,7 @@ export class World {
 
 	/** Removes a component from the entity\
 	 * Does nothing if the entity doesn't have the component */
-	Remove<C extends (Component<any> | Flag)>(e: Entity, C: C): void
+	Remove<C extends Component<any> | Flag>(e: Entity, C: C): void
 
 	/** Deletes all data from the entity, removes the entity from the world, and - treating `e` like a component - removes any data associated with `e` from all other entities.\
 	 * Of course, if you have references to entities in any of your data, this cannot be deleted automatically - use OnDelete hooks for such components.\
@@ -176,10 +181,10 @@ export class World {
 	OnAddRemove(C: AnyFlag | AnyComponent<any>, onAddRemove: (e: Entity, added: boolean) => void): void
 
 	/** Extends any OnDelete behaviour defined for `C`.\
-	 * OnDelete is triggered after OnRemove if the OnRemove was triggered by world:Delete */
+	 * Triggered after OnRemove (if the OnRemove was triggered by world:Delete) */
 	OnDelete(C: AnyFlag, onDelete: (e: Entity) => void): void
 	/** Extends any OnDelete behaviour defined for `C`.\
-	 * Triggered after OnRemove if the OnRemove was triggered by world:Delete
+	 * Triggered after OnRemove (if the OnRemove was triggered by world:Delete)
 	 * @param onDelete `prev` refers to the value of e[C] *before* the world:Delete call */
 	OnDelete<Data>(C: AnyComponent<Data>, onDelete: (e: Entity, prev: Data) => void): void
 
