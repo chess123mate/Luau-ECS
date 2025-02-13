@@ -5,12 +5,41 @@ local ecs = require(game.ReplicatedStorage.ecs)
 local new = ecs.World.new
 
 local function verifyIntegrity(w)
-	for id, e in w.idToEntity do
-		t.truthy(e.archetype)
-		t.equals(e.archetype.entities[e.entitiesIndex], e)
+	local keyToArchetype = w.keyToArchetype
+	local idToEntity = w.idToEntity
+	for id, e in idToEntity do
+		local archetype = e.archetype
+		t.truthy(archetype, "all entities must be in an archetype")
+		t.equals(archetype.entities[e.entitiesIndex], e)
+		t.equals(keyToArchetype[archetype.key], archetype, "entity archetype must be in keyToArchetype")
 	end
-	for _, arch in w.keyToArchetype do
+	-- print("---")
+	-- for _, arch in keyToArchetype do
+	-- 	print(arch.key)
+	-- 	for C, other in arch.addComponent do
+	-- 		print(" +", C.Id, "->", other.key)
+	-- 	end
+	-- 	for C, other in arch.removeComponent do
+	-- 		print(" -", C.Id, "->", other.key)
+	-- 	end
+	-- end
+	for _, arch in keyToArchetype do
 		t.equals(arch.count, #arch.entities)
+		for C in arch.HasComponent do
+			t.truthy(idToEntity[C.Id], "archetype component not deleted")
+		end
+		for C, other in arch.addComponent do
+			t.truthy(keyToArchetype[other.key], "archetype addComponent has reference to deleted archetype", other.key)
+			t.falsy(arch.HasComponent[C])
+			t.truthy(other.HasComponent[C])
+			t.notEquals(arch, other)
+		end
+		for C, other in arch.removeComponent do
+			t.truthy(keyToArchetype[other.key], "archetype removeComponent has reference to deleted archetype", other.key)
+			t.truthy(arch.HasComponent[C])
+			t.falsy(other.HasComponent[C])
+			t.notEquals(arch, other)
+		end
 	end
 end
 
@@ -261,7 +290,7 @@ local function archetypeToString(archetype)
 end
 local function verifyNoEmptyArchetype(w, clearedC)
 	for key, archetype in w.keyToArchetype do
-		if archetype.count == 0 and archetype.key ~= "" then
+		if archetype.count == 0 and not ecs._protectedArchetypes[archetype.key] then
 			error(`Empty archetype {archetypeToString(archetype)} exists after ClearComponent`)
 		elseif archetype.HasComponent[clearedC] then
 			error(`Archetype {archetypeToString(archetype)} still exists with '{clearedC.Name}'`)
@@ -296,7 +325,9 @@ function tests.DeleteComponent()
 	verifyIntegrity(w)
 end
 tests.ClearComponent = {
-	test = function(autoDelete)
+	test = function(test)
+		local autoDelete = test == 1 or test == 3
+		local delete = test >= 3
 		ecs.AutoDeleteEmptyArchetypes = autoDelete
 		local w = new()
 		local A, B, C = w:Flag("A"), w:Flag("B"), w:Flag("C")
@@ -318,8 +349,14 @@ tests.ClearComponent = {
 		make("B", {}, B)
 		make("AB", {A}, A, B) -- must merge into pre-existing
 		make("BC", {C}, B, C) -- handles case where C is not pre-existing
-		w:ClearComponent(B)
+		verifyIntegrity(w)
+		if delete then
+			w:Delete(B)
+		else
+			w:ClearComponent(B)
+		end
 		for e, set in expected do
+			t.truthy(w:Has(e, w.EntityFlag), "should have EntityFlag")
 			for C in set do
 				t.truthy(w:Has(e, C), e.Name, "should have", C.Name)
 			end
@@ -342,7 +379,7 @@ tests.ClearComponent = {
 		end
 		verifyIntegrity(w)
 	end,
-	args = {true, false}
+	args = {1, 2, 3, 4},
 }
 function tests.ClearComponent2()
 	ecs.AutoDeleteEmptyArchetypes = false
@@ -549,9 +586,25 @@ tests.errors = {
 		{name="removeDeletedEntity", function(x)
 			x.w:Delete(x.e1)
 			x.w:Remove(x.e1)
-		end, "deleted"}
+		end, "deleted"},
+		{name="clearNoComponent", function(x)
+			x.w:ClearComponent(nil)
+		end, "Missing"},
 	}
 }
+
+function tests.DeleteEmptyArchetype()
+	ecs.AutoDeleteEmptyArchetypes = false
+	local x = setupAB2()
+	local w, A, B = x.w, x.A, x.B
+	-- setupAB2 adds B to just e2
+	w:ClearComponent(B)
+	w:Delete(B)
+	verifyIntegrity(w)
+	w:ClearComponent(A)
+	w:Delete(A)
+	verifyIntegrity(w)
+end
 
 
 end -- function(tests, t)

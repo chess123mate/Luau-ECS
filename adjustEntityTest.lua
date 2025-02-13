@@ -1,6 +1,10 @@
 -- This test run repeatedly with ecs library to test effectiveness of AdjustEntity and identify bugs
---[[It also used this in the ecs file:
-function World:AdjustEntity2(e, adjustFn)
+local ecs = require(game.ReplicatedStorage.ecs:Clone())
+ecs.AutoDeleteEmptyArchetypes = false
+ecs.EntityNameDefault = false
+print(".")
+local world = ecs.World.new()
+function world:AdjustEntity2(e, adjustFn)
 	adjustFn(
 		function(C)
 			self:Add(e, C)
@@ -13,12 +17,6 @@ function World:AdjustEntity2(e, adjustFn)
 		end)
 	return e
 end
-]]
-local ecs = require(game.ReplicatedStorage.ecs:Clone())
-ecs.AutoDeleteEmptyArchetypes = false
-ecs.EntityNameDefault = false
-print(".")
-local world = ecs.World.new()
 local C1 = world:Component()
 local C2 = world:Component()
 local n = 1000
@@ -191,18 +189,18 @@ end
 --[[For 1k, per entity:
 0.73μs create
 0.31μs empty adjust
-0.44μs remove C1
-0.88μs remove C1,C2
+0.44μs remove C1 -> .18
+0.88μs remove C1,C2 -> .9 ? (why is remove C1 so much more efficient but not this?)
 0.04μs Clear C1
-0.44μs add C1
-0.97μs adjust1 0.21μs
-0.83μs adjust1b 0.61μs
-0.86μs add C1,C2
+0.44μs add C1 -> .16
+0.97μs adjust1 0.21μs -> 1.17 [!]
+0.83μs adjust1b 0.61μs -> .39
+0.86μs add C1,C2 -> .29 [!]
 1.29μs adjust2 0.29μs
-1.18μs adjust2b 0.97μs
-6.54μs set/add10
-5.76μs adjust10
-7.62μs adjust10b
+1.18μs adjust2b 0.97μs -> 0.59
+6.54μs set/add10 -> 2.07
+5.76μs adjust10 -> 5.2
+7.62μs adjust10b -> 1.95
 For adjust:
 	Seems crazy that `total` (as seen in `adjust1`) can be ~50% of `add C1`
 For adjust b compared to add/set method:

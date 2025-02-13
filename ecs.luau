@@ -36,8 +36,19 @@ Archetype = {
 	components = List<tostring(Component.Id)>
 	HasComponent = Set<Component>
 	key = table.concat(tostring(Component.Id), "_")
+	-- The following cache adjacent archetypes
+	addComponent = {[Component] = archetype}
+	removeComponent = {[Component] = archetype}
 }
 ]]
+
+local protectedArchetypes = {
+	-- Even with AutoDelete, these commonly used archetypes will never be deleted
+	[""] = true,
+	["0"] = true,
+	["1"] = true,
+}
+ecs._protectedArchetypes = protectedArchetypes -- for testing only
 
 local function Archetype_addEntity(archetype, e) -- updates e.archetype
 	local index = archetype.count + 1
@@ -101,6 +112,14 @@ local function Archetype_disassociateComponents(archetype)
 		C.archetypesCount = count - 1
 	end
 end
+local function Archetype_disassociateShortcuts(archetype)
+	for C, other in archetype.addComponent do
+		other.removeComponent[C] = nil
+	end
+	for C, other in archetype.removeComponent do
+		other.addComponent[C] = nil
+	end
+end
 
 local emptyTable = table.freeze({})
 local deletingArchetype = table.freeze({
@@ -138,6 +157,8 @@ function World.new()
 		components = {},
 		HasComponent = {},
 		key = "",
+		addComponent = {},
+		removeComponent = {},
 	}
 	local self = setmetatable({
 		keyToArchetype = {[""] = emptyArchetype},
@@ -178,23 +199,29 @@ local function World_newArchetypeFor(self, e, key, components, hasComponent)
 		components = components,
 		HasComponent = hasComponent,
 		key = key,
+		addComponent = {},
+		removeComponent = {},
 	}
 	self.keyToArchetype[key] = archetype
 	e.archetype = archetype
 	e.entitiesIndex = 1
 	Archetype_associateComponents(archetype)
+	return archetype
 end
 
 --- Removes the entity from its currently assigned archetype. Its archetype and entitiesIndex properties should be cleared/changed after calling this.
 --- Returns true if the current operation should be cancelled because the entity is being deleted
+--- Returns false if the archetype is deleted
 local function World_removeEntityFromCurrentArchetype(self, e)
 	local archetype = e.archetype
 	if archetype == deletingArchetype then return true end -- do not perform this operation
 	Archetype_removeEntity(archetype, e)
-	if archetype.count == 0 and ecs.AutoDeleteEmptyArchetypes and archetype.key ~= "" then -- never delete emptyArchetype
+	if archetype.count == 0 and ecs.AutoDeleteEmptyArchetypes and not protectedArchetypes[archetype.key] then
 		-- World_deleteArchetype:
 		self.keyToArchetype[archetype.key] = nil
 		Archetype_disassociateComponents(archetype)
+		Archetype_disassociateShortcuts(archetype)
+		return false
 	end
 end
 
@@ -202,15 +229,27 @@ end
 --- assumes !e.archetype.HasComponent[C]; does not handle hooks nor value
 --- Returns true if 'e' is being deleted
 local function World_addComponentToEntityArchetype(self, e, C)
-	if World_removeEntityFromCurrentArchetype(self, e) then return true end
-	local key, components = Archetype_addGetKey(e.archetype, C)
-	local archetype = self.keyToArchetype[key]
-	if not archetype then
-		local hasComponent = table.clone(e.archetype.HasComponent)
-		hasComponent[C] = true
-		World_newArchetypeFor(self, e, key, components, hasComponent)
-	else
+	local result = World_removeEntityFromCurrentArchetype(self, e)
+	if result then return true end
+	local prevArchetype = e.archetype
+	-- Try shortcut
+	local archetype = prevArchetype.addComponent[C]
+	if archetype then
 		Archetype_addEntity(archetype, e)
+		return
+	end
+	local key, components = Archetype_addGetKey(prevArchetype, C)
+	archetype = self.keyToArchetype[key]
+	if archetype then
+		Archetype_addEntity(archetype, e)
+	else
+		local hasComponent = table.clone(prevArchetype.HasComponent)
+		hasComponent[C] = true
+		archetype = World_newArchetypeFor(self, e, key, components, hasComponent)
+	end
+	if result ~= false then -- Setup shortcut
+		prevArchetype.addComponent[C] = archetype
+		archetype.removeComponent[C] = prevArchetype
 	end
 end
 
@@ -218,15 +257,27 @@ end
 --- assumes e.archetype.HasComponent[C]; does not handle hooks nor value
 --- Returns true if 'e' is being deleted
 local function World_removeComponentFromEntityArchetype(self, e, C)
-	if World_removeEntityFromCurrentArchetype(self, e) then return true end
-	local key, components = Archetype_removeGetKey(e.archetype, C)
-	local archetype = self.keyToArchetype[key]
-	if not archetype then
-		local hasComponent = table.clone(e.archetype.HasComponent)
-		hasComponent[C] = nil
-		World_newArchetypeFor(self, e, key, components, hasComponent)
-	else
+	local result = World_removeEntityFromCurrentArchetype(self, e)
+	if result then return true end
+	local prevArchetype = e.archetype
+	-- Try shortcut
+	local archetype = prevArchetype.removeComponent[C]
+	if archetype then
 		Archetype_addEntity(archetype, e)
+		return
+	end
+	local key, components = Archetype_removeGetKey(prevArchetype, C)
+	archetype = self.keyToArchetype[key]
+	if archetype then
+		Archetype_addEntity(archetype, e)
+	else
+		local hasComponent = table.clone(prevArchetype.HasComponent)
+		hasComponent[C] = nil
+		archetype = World_newArchetypeFor(self, e, key, components, hasComponent)
+	end
+	if result ~= false then -- Setup shortcut
+		prevArchetype.removeComponent[C] = archetype
+		archetype.addComponent[C] = prevArchetype
 	end
 end
 
@@ -283,7 +334,7 @@ function World:CreateEntity(name, initFn)
 end
 --- Same as CreateEntity for existing entities.
 --- adjustFn : function(add, set, remove)
---- Note: For hooks, only the translation from the starting state into the final state will be run. Thus, removing a flag and then adding it again (in the same AdjustEntity call) will not trigger any hooks.
+--- Note: For hooks, only the archetype from the starting state into the final state will be run. Thus, removing a flag and then adding it again (in the same AdjustEntity call) will not trigger any hooks.
 --- Performance-wise, this function is only superior when you have more than 4 changes to make at a time.
 --- Returns the entity.
 function World:AdjustEntity(e, adjustFn)
@@ -445,7 +496,7 @@ function World:Delete(e)
 	-- Remove everything from 'e'
 	-- Note: if this next line returns, we're already deleting 'e'
 	if World_removeEntityFromCurrentArchetype(self, e) then return end -- doesn't clear e.archetype
-	local components = e.archetype.HasComponent
+	local components = archetype.HasComponent
 	e.archetype = deletingArchetype -- in addition to preventing us from trying to delete 'e' a 2nd time, prevents components from being added to/removed from it
 	for C in components do
 		if C.IsFlag then
@@ -492,7 +543,7 @@ local spareTable = {}
 --- Useful to clear temporary flags/data efficiently; should be used instead of `for e in world:Query(C) do world:Remove(e, C) end`
 function World:ClearComponent(C, _deleting)
 	-- Remove the entire archetype (for each archetype C is in) rather than removing each entity individually
-	local numArchetypesCount = C.archetypesCount
+	local numArchetypesCount = (C or error("Missing Component argument in World:ClearComponent", 2)).archetypesCount
 	if numArchetypesCount == 0 then return end
 	local onChange = C.OnChange
 	local onRemove = C.OnRemove
@@ -507,47 +558,58 @@ function World:ClearComponent(C, _deleting)
 	local archetypes = C.archetypes
 	for i = numArchetypesCount, 1, -1 do -- must iterate in reverse order due to Archetype_disassociateComponents
 		local archetype = archetypes[i]
-		if archetype.count == 0 then continue end
-		local entities = archetype.entities
-		if entitiesRemoved then
-			table.insert(entitiesRemoved, entities)
-		elseif not C.IsFlag then
-			-- Remove all values from entities (normally we do that in the hook section below, but no hooks)
-			for _, entity in entities do
-				entity[C] = nil
+		local archCount = archetype.count
+		local entities
+		if archetype.count > 0 then
+			entities = archetype.entities
+			if entitiesRemoved then
+				table.insert(entitiesRemoved, entities)
+			elseif not C.IsFlag then
+				-- Remove all values from entities (normally we do that in the hook section below, but no hooks)
+				for _, entity in entities do
+					entity[C] = nil
+				end
 			end
 		end
 		-- We want to remove C from archetype
-		local key, components = Archetype_removeGetKey(archetype, C)
-		local targetArchetype = keyToArchetype[key]
+		local targetArchetype = archetype.removeComponent[C]
+		local key, components
+		if not targetArchetype then
+			key, components = Archetype_removeGetKey(archetype, C)
+			targetArchetype = keyToArchetype[key]
+		end
 		if targetArchetype then
-			if targetArchetype.count == 0 then
-				-- Switch entities & count around
-				targetArchetype.entities, archetype.entities = entities, targetArchetype.entities
-				targetArchetype.count = archetype.count -- archetype.count is set to 0 below (if it isn't being deleted)
-				for i, e in entities do
-					e.archetype = targetArchetype
-					-- entitiesIndex stays the same
+			if archCount > 0 then
+				if targetArchetype.count == 0 then
+					-- Switch entities & count around
+					targetArchetype.entities, archetype.entities = entities, targetArchetype.entities
+					targetArchetype.count = archetype.count -- archetype.count is set to 0 below (if it isn't being deleted)
+					for i, e in entities do
+						e.archetype = targetArchetype
+						-- entitiesIndex stays the same
+					end
+					-- in one of the cleanup cases below, entities must refer to the empty archetype's entities
+					entities = archetype.entities
+				else
+					-- Copy entities into targetArchetype
+					local targetEntities = targetArchetype.entities
+					local numEntities = #entities
+					local numTarget = #targetEntities
+					table.move(entities, 1, numEntities, numTarget + 1, targetEntities)
+					targetArchetype.count += numEntities
+					for i, e in entities do
+						e.archetype = targetArchetype
+						e.entitiesIndex = numTarget + i
+					end
+					-- Don't need to table.clear(entities) as this is handled below: archetype is either deleted or cleared of entities
 				end
-				-- in one of the cleanup cases below, entities must refer to the empty archetype's entities
-				entities = archetype.entities
-			else
-				-- Copy entities into targetArchetype
-				local targetEntities = targetArchetype.entities
-				local numEntities = #entities
-				local numTarget = #targetEntities
-				table.move(entities, 1, numEntities, numTarget + 1, targetEntities)
-				targetArchetype.count += numEntities
-				for i, e in entities do
-					e.archetype = targetArchetype
-					e.entitiesIndex = numTarget + i
-				end
-			end
+			end -- else no entities to move anywhere
 			if autoDelete then
 				-- World_deleteArchetype:
 				keyToArchetype[archetype.key] = nil
 				Archetype_disassociateComponents(archetype)
-			else
+				Archetype_disassociateShortcuts(archetype)
+			elseif archCount > 0 then
 				archetype.count = 0
 				if entitiesRemoved then
 					archetype.entities = {} -- cannot use table.clear since table is needed in entitiesRemoved
@@ -575,9 +637,13 @@ function World:ClearComponent(C, _deleting)
 				numArchetypesCount -= 1
 				C.archetypesCount = numArchetypesCount
 			end
+			-- Clear shortcuts (they're all invalid now):
+			Archetype_disassociateShortcuts(archetype)
+			table.clear(archetype.addComponent)
+			table.clear(archetype.removeComponent)
 		end
 	end
-	if autoDelete then
+	if autoDelete --[[and not _deleting]] then -- TODO UNCERTAIN if we're deleting C, we don't need its archetypes table to be up-to-date
 		table.clear(C.archetypes)
 		C.archetypesCount = 0
 	end -- else, in the case of targetArchetype above, there will be valid archetypes that C should still refer to (though they'll have no entities at the moment)
@@ -638,7 +704,7 @@ function World:Cleanup()
 	if ecs.AutoDeleteEmptyArchetypes then return end
 	local keyToArchetype = self.keyToArchetype
 	for key, archetype in keyToArchetype do
-		if archetype.count == 0 and key ~= "" then
+		if archetype.count == 0 and not protectedArchetypes[key] then
 			keyToArchetype[key] = nil
 		end
 	end
