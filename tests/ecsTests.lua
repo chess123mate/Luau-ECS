@@ -79,57 +79,6 @@ function tests.AddData2()
 	t.equals(w:Get(e2, B), "e2b")
 	verifyIntegrity(w)
 end
-function tests.CreateEntity()
-	local w = new()
-	local A = w:Component()
-	local B = w:Component()
-	local C = w:Flag()
-	local e1 = w:CreateEntity(function(add, set)
-		set(A, "e1a")
-		add(C)
-	end)
-	local e2 = w:CreateEntity(function(add, set)
-		set(B, "e2b")
-		set(A, "e2a")
-	end)
-	t.equals(w:Get(e1, A), "e1a")
-	t.truthy(w:Has(e1, C), "e1 C")
-	t.equals(w:Get(e2, A), "e2a")
-	t.equals(w:Get(e2, B), "e2b")
-	verifyIntegrity(w)
-end
-function tests.AdjustEntity()
-	local w = new()
-	local A = w:Component()
-	local B = w:Component()
-	local C = w:Flag()
-	local D = w:Component()
-	local e1 = w:Entity("e1")
-	w:AdjustEntity(e1, function(add, set, remove)
-		set(A, "e1a 1")
-		set(B, "tmp")
-		add(C)
-	end)
-	local e2 = w:Entity("e2")
-	w:AdjustEntity(e2, function(add, set, remove)
-		set(B, "e2b 1")
-		remove(B)
-		set(B, "e2b 2")
-		set(A, "e2a")
-	end)
-	w:AdjustEntity(e1, function(add, set, remove)
-		remove(B)
-		set(A, "e1a 2")
-		set(D, "tmp")
-		remove(D)
-	end)
-	t.equals(w:Get(e1, A), "e1a 2")
-	t.truthy(w:Has(e1, C), "e1 C")
-	t.equals(w:Get(e2, A), "e2a")
-	t.equals(w:Get(e2, B), "e2b 2")
-	t.falsy(w:Has(e1, D), "e1 !D")
-	verifyIntegrity(w)
-end
 
 local function setupAB2()
 	local w = new()
@@ -201,15 +150,20 @@ function tests.QueryWithout()
 	end
 	verifyIntegrity(w)
 end
+local function create(w, fn)
+	local e = w:Entity()
+	fn(function(F) w:Add(e, F) end, function(C, v) w:Set(e, C, v) end)
+	return e
+end
 function tests.QueryCount()
 	local w = new()
 	local A = w:Flag("A")
 	local B = w:Flag("B")
 	local C = w:Flag("C")
-	w:CreateEntity(function(add) add(A) end)
-	for i = 1, 2 do w:CreateEntity(function(add) add(A) add(B) end) end
-	for i = 1, 2 do w:CreateEntity(function(add) add(A) add(C) end) end
-	w:CreateEntity(function(add) add(B) end)
+	create(w, function(add) add(A) end)
+	for i = 1, 2 do create(w, function(add) add(A) add(B) end) end
+	for i = 1, 2 do create(w, function(add) add(A) add(C) end) end
+	create(w, function(add) add(B) end)
 
 	t.equals(w:Query(A):Count(), 5)
 	t.equals(w:Query(A):Without(B):Count(), 3)
@@ -223,7 +177,7 @@ function tests.IterComponents()
 	local A = w:Flag("A")
 	local B = w:Flag("B")
 	local iter = {[A] = true, [B] = true, [w.EntityFlag] = true}
-	for C in w:IterComponents(w:CreateEntity(function(add) add(A) add(B) end)) do
+	for C in w:IterComponents(create(w, function(add) add(A) add(B) end)) do
 		if not iter[C] then error("unexpected component in iteration " .. (C.Name or "?") .. " " .. tostring(C)) end
 		iter[C] = nil
 	end
@@ -284,7 +238,11 @@ end
 local function archetypeToString(archetype)
 	local t = {}
 	for C in archetype.HasComponent do
-		table.insert(t, C.Name or C.Id)
+		table.insert(t, {C.Name or C.Id, C.Id})
+	end
+	table.sort(t, function(a, b) return a[2] < b[2] end)
+	for i, a in t do
+		t[i] = a[1]
 	end
 	return table.concat(t, "_")
 end
@@ -311,7 +269,6 @@ function tests.DeleteEntity()
 	verifyIntegrity(w)
 end
 function tests.DeleteComponent()
-	ecs.AutoDeleteEmptyArchetypes = true
 	local w = new()
 	local A = w:Component()
 	local B = w:Component()
@@ -325,10 +282,7 @@ function tests.DeleteComponent()
 	verifyIntegrity(w)
 end
 tests.ClearComponent = {
-	test = function(test)
-		local autoDelete = test == 1 or test == 3
-		local delete = test >= 3
-		ecs.AutoDeleteEmptyArchetypes = autoDelete
+	test = function(delete)
 		local w = new()
 		local A, B, C = w:Flag("A"), w:Flag("B"), w:Flag("C")
 		local expected = {} -- [entity] = set of components expected after operation
@@ -366,39 +320,27 @@ tests.ClearComponent = {
 				end
 			end
 		end
-		if autoDelete then
-			verifyNoEmptyArchetype(w, B)
-		end
-		-- Verify that B doesn't have any archetypes (or at least that they don't have any entities in them) [note: this section caught errors not caught by verifyNoEmptyArchetype]
-		for _, archetype in B.archetypes do
-			if not archetype.HasComponent[B] then
-				error("Archetype no longer has B, but B still has archetype")
-			elseif archetype.count > 0 then
-				error("B has an archetype with entities in it")
+		if not delete then
+			-- Verify that B doesn't have any archetypes (or at least that they don't have any entities in them)
+			for _, archetype in B.archetypes do
+				if not archetype.HasComponent[B] then
+					error("Archetype no longer has B, but B still has archetype")
+				elseif archetype.count > 0 then
+					error("B has an archetype with entities in it")
+				end
 			end
-		end
+		end -- else B was deleted so it may still have invalid references
 		verifyIntegrity(w)
 	end,
-	args = {1, 2, 3, 4},
+	args = {false, true},
 }
-function tests.ClearComponent2()
-	ecs.AutoDeleteEmptyArchetypes = false
+function tests.ClearComponent_DataIsDeleted()
 	local world = ecs.World.new()
-	local C1 = world:Component()
-	local C2 = world:Component()
-	local es = {}
-	for i = 1, 5 do
-		local e = world:Entity()
-		es[i] = e
-		world:Set(e, C1, i)
-		world:Set(e, C2, i)
-	end
-	world:ClearComponent(C1)
-	world:ClearComponent(C2)
-	for i, e in es do
-		world:Delete(e)
-	end
-	verifyIntegrity(world)
+	local C = world:Component()
+	local e = world:Entity()
+	world:Set(e, C, true)
+	world:ClearComponent(C)
+	t.falsy(world:Get(e, C))
 end
 
 function tests.Hooks()
@@ -594,7 +536,6 @@ tests.errors = {
 }
 
 function tests.DeleteEmptyArchetype()
-	ecs.AutoDeleteEmptyArchetypes = false
 	local x = setupAB2()
 	local w, A, B = x.w, x.A, x.B
 	-- setupAB2 adds B to just e2

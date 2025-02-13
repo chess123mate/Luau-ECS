@@ -1,7 +1,5 @@
 /** Config that adjusts how all worlds operate */
 export const Config: {
-	/** Defaults to false. Might make sense to set to `true` to save on memory if you have numerous combinations of components/flags that are often only used briefly. (For example, a scenario where you have 20 flags and an entity may randomly have none or all would create 2^20 archetypes.) Alternatively, occasionally call world:Clean(). Note that setting this to true in regular usage may harm performance if you are regularly emptying out and recreating archetypes. */
-	AutoDeleteEmptyArchetypes: boolean
 	/** Defaults to true. Set to false to disable entities from having their Name field be set to their Id field by default. */
 	EntityNameDefault: boolean
 }
@@ -63,17 +61,12 @@ type InferComponentValues<A extends Entity[]> = {
 	[K in keyof A]: InferComponentValue<A[K]>
 }
 
-/** The `add` function sent in `CreateEntity` */
-export type Init_add = (C: Flag) => void
-/** The `set` function sent in `CreateEntity` */
-export type Init_set = <Data>(C: Component<Data>, value: Data) => void
-
 export class World {
 	constructor()
 
 	/** Added to anything created via Component or Flag */
 	ComponentFlag: Flag
-	/** Added to anything created via Entity or CreateEntity */
+	/** Added to anything created via Entity */
 	EntityFlag: Flag
 
 	/** Create a new entity.\
@@ -87,29 +80,6 @@ export class World {
 	/** Create a new Flag entity. Unlike an Entity, it has `ComponentFlag` set. Unlike Components, Flags never have data associated with them.
 	 * @param name Stored in entity.Name */
 	Flag(name?: string): Flag
-
-	/** Efficiently create an entity with tags/components.\
-	 * Hooks will be invoked all at once *after* the entity has all the specified flags and components.\
-	 * (This method can run in 33% - 75% of the time as using `Entity`, depending on the number of components/flags you add.)
-	 * @param initFn is expected to add any flags and set any components that the entity should have.
-	 * @example ```
-	 * world.CreateEntity((add, set) => {
-	 * 	add(flag)
-	 * 	set(component, 0)
-	 * })
-	 * // If you want to create a helper function, use the following function signature:
-	 * function setup(add: Init_add, set: Init_set){
-	 * 	add(flag)
-	 * 	set(component, 0)
-	 * }
-	 * ``` */
-	CreateEntity(name: string, initFn: (add: (C: Flag) => void, set: <Data>(C: Component<Data>, value: Data) => void) => void): Entity
-	CreateEntity(initFn: (add: (C: Flag) => void, set: <Data>(C: Component<Data>, value: Data) => void) => void): Entity
-
-	/** Same as CreateEntity for existing entities.\
-	 * Note: For hooks, only the translation from the starting state into the final state will be run. Thus, removing a flag and then adding it again (in the same AdjustEntity call) will not trigger any hooks.\
-	 * Returns the entity. */
-	AdjustEntity(e: Entity, adjust: (add: Init_add, set: Init_set, remove: Init_add) => void): Entity
 
 	Add(e: Entity, C: Flag): void
 	Has(e: Entity, C: Entity): boolean
@@ -154,8 +124,8 @@ export class World {
 	Query<T extends Entity[]>(...components: T): Query<InferComponentValues<T>>
 
 	/** Remove empty archetypes (good for memory and query performance, but at the cost of having to create them again later, if needed).\
-	 * Not needed if Config.AutoDeleteEmptyArchetypes is true.\
-	 * Note that archetypes with deleted components are automatically cleaned up in `Delete`. */
+	 * Note that archetypes with deleted components are automatically cleaned up in `Delete`.\
+	 * Thus, it only makes sense to run this if you've created a large number of components/archetypes that you're no longer using but haven't deleted, especially if you will be doing a lot of queries but not creating more entities. */
 	Cleanup(): void
 	IdToEntity(id: number): Entity | undefined
 
