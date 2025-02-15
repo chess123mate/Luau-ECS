@@ -54,6 +54,7 @@ export type Query<T extends unknown[]> = Iter<T> & {
 	Custom(keep: (hasComponent: ReadonlySet<Entity>) => boolean): Query<T>
 	/** Counts how many entities are in the query. (Faster than iterating over them yourself.) */
 	Count(): number
+	Clone(): Query<T>
 }
 
 type InferComponentValue<E> = E extends AnyComponent<infer T> ? T : undefined

@@ -542,6 +542,7 @@ local function Query_new(with)
 		-- custom = nil or List<fn>
 	}, Query)
 end
+Query.Clone = table.clone
 local function extend(list, ...)
 	local n = #list
 	for i = 1, select("#", ...) do
