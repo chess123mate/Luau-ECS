@@ -277,7 +277,9 @@ function World:Add(e, C)
 	if onAdd then onAdd(e) end
 end
 function World:Has(e, C)
-	return (e or error("Missing entity argument in World:Has", 2)).archetype.HasComponent[C] == true
+	return ((e or error("Missing entity argument in World:Has", 2))
+		.archetype or error("Argument #1 is not an entity or was already deleted", 2))
+		.HasComponent[C] == true
 end
 function World:Get(e, C)
 	return e[C]
