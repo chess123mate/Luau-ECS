@@ -97,7 +97,7 @@ export class World {
 
 	/** Deletes all data from the entity, removes the entity from the world, and - treating `e` like a component - removes any data associated with `e` from all other entities.\
 	 * Of course, if you have references to entities in any of your data, this cannot be deleted automatically - use OnDelete hooks for such components.\
-	 * Note that archetypes referencing `e` will be deleted regardless of `ecs.AutoDeleteEmptyArchetypes` */
+	 * If the entity is already deleted, does nothing. */
 	Delete(e: Entity): void
 	/** Returns true while the world is deleting 'e'. */
 	IsDeleting(e: Entity): boolean

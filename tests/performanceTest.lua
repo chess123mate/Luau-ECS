@@ -2,7 +2,6 @@ return function(tests, t)
 
 
 local ecs = require(game.ReplicatedStorage.ecs)
-ecs.AutoDeleteEmptyArchetypes = false
 --[[
 Note: numbers do not seem to be altered when running ECS with !native option; perhaps it isn't compiled when required by code in TestService?
 ECS:

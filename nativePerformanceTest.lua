@@ -1,6 +1,5 @@
 -- This test run repeatedly with ecs library using !native vs not
 local ecs = require(game.ReplicatedStorage.ecs)
-ecs.AutoDeleteEmptyArchetypes = true
 local world = ecs.World.new()
 
 local total = 0
