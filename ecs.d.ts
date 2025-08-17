@@ -133,6 +133,8 @@ export class World {
 	/** Extends any OnAdd behaviour defined for `C`.\
 	 * Triggered when C is added to an entity. */
 	OnAdd(C: AnyFlag, onAdd: (e: Entity) => void): void
+	/** Extends any OnAdd behaviour defined for `C`.\
+	 * Triggered when C is added to an entity. Called before OnChange. */
 	OnAdd<Data>(C: AnyComponent<Data>, onAdd: (e: Entity, value: Data) => void): void
 
 	/** Extends any OnChange behaviour defined for `C`.\
@@ -143,7 +145,7 @@ export class World {
 	OnNewValue<Data>(C: AnyComponent<Data>, onNewValue: (e: Entity, value: Data, prev: Data | undefined) => void): void
 
 	/** Extends any OnRemove behaviour defined for `C`.\
-	 * Triggered when C is removed from an entity. */
+	 * Triggered when C is removed from an entity (after OnChange). */
 	OnRemove(C: AnyFlag, onRemove: (e: Entity) => void): void
 	OnRemove<Data>(C: AnyComponent<Data>, onRemove: (e: Entity, prev: Data) => void): void
 
@@ -152,10 +154,10 @@ export class World {
 	OnAddRemove(C: AnyFlag | AnyComponent<any>, onAddRemove: (e: Entity, added: boolean) => void): void
 
 	/** Extends any OnDelete behaviour defined for `C`.\
-	 * Triggered after OnRemove (if the OnRemove was triggered by world:Delete) */
+	 * Note: OnRemove is called before OnDelete. */
 	OnDelete(C: AnyFlag, onDelete: (e: Entity) => void): void
 	/** Extends any OnDelete behaviour defined for `C`.\
-	 * Triggered after OnRemove (if the OnRemove was triggered by world:Delete)
+	 * Note: OnRemove is called before OnDelete.
 	 * @param onDelete `prev` refers to the value of e[C] *before* the world:Delete call */
 	OnDelete<Data>(C: AnyComponent<Data>, onDelete: (e: Entity, prev: Data) => void): void
 
