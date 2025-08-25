@@ -670,7 +670,7 @@ function Query:__iter()
 	-- 	i -= 1
 	-- 	return e
 	-- end
-	local A, B, C, D, E = unpack(self.with, 1, self.numComponents)
+	local A, B, C, D, E, F = unpack(self.with, 1, self.numComponents)
 	if not B then
 		-- return function()
 		-- 	local e = advance()
@@ -732,7 +732,7 @@ function Query:__iter()
 			i -= 1
 			return e, e[A], e[B], e[C], e[D]
 		end
-	else
+	elseif not F then
 		return function()
 			local e = entities[i]
 			while not e do
@@ -745,6 +745,26 @@ function Query:__iter()
 			end
 			i -= 1
 			return e, e[A], e[B], e[C], e[D], e[E]
+		end
+	else
+		local numComponents = self.numComponents
+		local components = self.with
+		local list = table.create(numComponents)
+		return function()
+			local e = entities[i]
+			while not e do
+				archetypeI += 1
+				archetype = archetypes[archetypeI]
+				if not archetype then return end
+				entities = archetype.entities
+				i = entityCounts[archetypeI] -- use cached count (see above)
+				e = entities[i]
+			end
+			i -= 1
+			for c = 1, numComponents do
+				list[c] = e[components[c]]
+			end
+			return e, unpack(list)
 		end
 	end
 end
