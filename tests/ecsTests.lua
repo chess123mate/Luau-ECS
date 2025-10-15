@@ -556,16 +556,25 @@ function tests.QueryMany()
 	local queryLength = 7
 	for i = 1, queryLength + 1 do
 		cs[i] = w:Component(tostring(i))
-		w:Set(e1, cs[i], "e1 " .. i)
-		w:Set(e2, cs[i], "e2 " .. i)
 	end
-
 	local queries = {
 		w:Query(unpack(cs, 1, queryLength)),
 		w:Query(unpack(cs, 1, queryLength)):With(cs[8]),
 	}
+	-- Confirm queries start out empty
+	for _, query in queries do
+		t.equals(query:Count(), 0, "should have 2 entities in the query")
+		t.equals(query:IsEmpty(), true, "IsEmpty should be true")
+	end
+
+	-- Add components to entities
+	for i = 1, queryLength + 1 do
+		w:Set(e1, cs[i], "e1 " .. i)
+		w:Set(e2, cs[i], "e2 " .. i)
+	end
 	for queryI, query in queries do
 		t.equals(query:Count(), 2, "should have 2 entities in the query")
+		t.equals(query:IsEmpty(), false, "IsEmpty should be false")
 		for e, c1, c2, c3, c4, c5, c6, c7, c8 in query do
 			t.equals(c8, nil, "q", queryI)
 			local valueList = {c1, c2, c3, c4, c5, c6, c7}
@@ -576,7 +585,9 @@ function tests.QueryMany()
 		end
 	end
 
-	t.equals(w:Query(unpack(cs, 1, queryLength)):Without(cs[8]):Count(), 0, "no entities in this query")
+	local query = w:Query(unpack(cs, 1, queryLength)):Without(cs[8])
+	t.equals(query:Count(), 0, "no entities in this query")
+	t.equals(query:IsEmpty(), true, "no entities in this query")
 end
 
 

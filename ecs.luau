@@ -545,6 +545,7 @@ local function Query_new(with)
 	}, Query)
 end
 Query.Clone = table.clone
+
 local function extend(list, ...)
 	local n = #list
 	for i = 1, select("#", ...) do
@@ -579,6 +580,7 @@ function Query:Custom(keep)
 	end
 	return self
 end
+
 local function Query_getArchetypes(self) -- returns count, archetypes
 	local with = self.with
 	local without = self.without
@@ -642,6 +644,59 @@ function Query:Count()
 	end
 	return count
 end
+
+--- Returns true if Count would return 0. (Faster than using `Count() == 0`)
+function Query:IsEmpty()
+	-- The following is a copy/paste of Query_getArchetypes with `archetypes` and `count` replaced with returning true/false as appropriate
+	local with = self.with
+	local without = self.without
+	local custom = self.custom
+	local best
+	local smallest = math.huge
+	for i, C in with do
+		local num = C.archetypesCount
+		if num == 0 then
+			return true
+		elseif num < smallest then
+			smallest = num
+			best = C
+		end
+	end
+	-- Now search each potential archetype if it meets all requirements
+	for _, archetype in best.archetypes do
+		if archetype.count == 0 then continue end
+		local invalid = false
+		local has = archetype.HasComponent
+		for _, C in with do
+			if not has[C] then
+				invalid = true
+				break
+			end
+		end
+		if invalid then continue end
+		if without then
+			for _, C in without do
+				if has[C] then
+					invalid = true
+					break
+				end
+			end
+			if invalid then continue end
+		end
+		if custom then
+			for _, keep in custom do
+				if not keep(has) then
+					invalid = true
+					break
+				end
+			end
+			if invalid then continue end
+		end
+		return false -- this is a valid archetype that has entities in it
+	end
+	return true -- no archetype found
+end
+
 local function doNothing() end
 function Query:__iter()
 	local count, archetypes = Query_getArchetypes(self)

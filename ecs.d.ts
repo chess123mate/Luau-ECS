@@ -55,6 +55,8 @@ export type Query<T extends unknown[]> = Iter<T> & {
 	/** Counts how many entities are in the query. (Faster than iterating over them yourself.) */
 	Count(): number
 	Clone(): Query<T>
+	/** Returns true if Count would return 0. (Faster than using `Count() == 0`) */
+	IsEmpty(): boolean
 }
 
 type InferComponentValue<E> = E extends AnyComponent<infer T> ? T : undefined
