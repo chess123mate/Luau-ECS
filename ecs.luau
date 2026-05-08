@@ -544,7 +544,15 @@ local function Query_new(with)
 		-- custom = nil or List<fn>
 	}, Query)
 end
-Query.Clone = table.clone
+function Query:Clone()
+	local without, custom = self.without, self.custom
+	return setmetatable({
+		numComponents = self.numComponents,
+		with = table.clone(self.with),
+		without = if without then table.clone(without) else nil,
+		custom = if custom then table.clone(custom) else nil,
+	}, Query)
+end
 
 local function extend(list, ...)
 	local n = #list
