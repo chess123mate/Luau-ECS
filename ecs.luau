@@ -13,8 +13,9 @@ local function validateComponent(C)
 	return if C
 		then if type(C) == "table" and C.archetype ~= nil
 			then C
-			else error("Invalid component argument", 3)
-		else error("Missing component argument", 3)
+			else error("Invalid component argument", 2)
+		else error("Missing component argument", 2)
+	-- Note: we use an error level of 2 because of native
 end
 --[[
 Unlike proper ECS, we use tables for entities: {
@@ -369,7 +370,7 @@ function World:IsDeleted(e)
 	return not (e or error("Missing entity argument in World:IsDeleted", 2)).archetype
 end
 
-local spareTable = {}
+local spareTable: {} | nil = {}
 --- Removes `C` (and clears any data associated with it) from all other entities.
 --- Unlike Delete, `C` itself is not modified and remains usable after the operation.
 --- Useful to clear temporary flags/data efficiently; should be used instead of `for e in world:Query(C) do world:Remove(e, C) end`
