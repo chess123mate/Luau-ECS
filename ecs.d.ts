@@ -59,13 +59,14 @@ export type Query<T extends unknown[]> = Iter<T> & {
 	IsEmpty(): boolean
 }
 
+type Name_<Name extends string> = {
+	/** The name associated with this entity for use with type checking. */
+	Name: Name
+}
 /** The same as Entity, but for use with type checked queries. */
-export type Entity_<Name extends string = string> = Reconstruct<
-	Omit<Entity, "Name"> & {
-		/** The name associated with this entity for use with type checking. */
-		Name: Name
-	}
->
+export type Entity_<Name extends string = string> = Reconstruct<Omit<Entity, "Name"> & Name_<Name>>
+export type Component_<Name extends string = string, Data = any> = Reconstruct<Omit<Component<Data>, "Name"> & Name_<Name>>
+export type Flag_<Name extends string = string> = Reconstruct<Omit<Flag, "Name"> & Name_<Name>>
 
 /** Represents a collection of entities for use in type checked queries. */
 export type Components<T extends Entity_[]> = {
@@ -106,13 +107,16 @@ export class World {
 	 * If needed, you can use this as a Component or Flag (simply type-cast it). If you intend to use it as a Flag, set `entity.IsFlag` to `true`.\
 	 * Unlike a Component or Flag, entities created this way have `EntityFlag` set.
 	 * @param name Stored in entity.Name */
-	Entity(name?: string): Entity
+	Entity(): Entity
+	Entity<Name extends string>(name: Name): Entity_<Name>
 	/** Create a new Component entity. Unlike an Entity, it has `ComponentFlag` set.
-	 * @param name Stored in entity.Name */
+	 * @param name Stored in entity.Name. If you want to use this component in type checked queries, use Component_ instead. */
 	Component<Data>(name?: string): Component<Data>
+	Component_<Data>(): <Name extends string>(name: Name) => Component_<Name, Data>
 	/** Create a new Flag entity. Unlike an Entity, it has `ComponentFlag` set. Unlike Components, Flags never have data associated with them.
 	 * @param name Stored in entity.Name */
-	Flag(name?: string): Flag
+	Flag(): Flag
+	Flag<Name extends string>(name: Name): Flag_<Name>
 
 	Add(e: Entity, C: Flag): void
 	Has(e: Entity, C: Entity): boolean
@@ -166,8 +170,7 @@ export class World {
 	 * 	// ...
 	 * }
 	 * ```
-	 * You will get an (unfortunately cryptic) error message if you attempt to use a component not in the component sets.
-	 */
+	 * You will get an (unfortunately cryptic) error message if you attempt to use a component not in the component sets. */
 	Query_<A extends Components<any>>(): <T extends A[keyof A][]>(...components: T) => Query_<A, T>
 
 	/** Remove empty archetypes (good for memory and query performance, but at the cost of having to create them again later, if needed).\
