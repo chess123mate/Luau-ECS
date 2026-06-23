@@ -840,6 +840,10 @@ end
 function World:Query(...)
 	return Query_new({...})
 end
+--- Supports type checked queries in Typescript
+function World:Query_()
+	return Query_new
+end
 
 local function override(t, key, fn)
 	local base = t[key]

@@ -21,12 +21,12 @@ type ComponentHooks<Data> = {
 	OnDelete?: (e: Entity, prev: Data) => void
 }
 /** Any component (protected or not). Useful if you just want to receive a component for world.Get. */
-export type AnyComponent<Data = any> = Reconstruct<Entity & { IsFlag: undefined, __data: Data }> & ComponentHooks<Data>
+export type AnyComponent<Data = any> = Reconstruct<Entity & { IsFlag: undefined; __data: Data }> & ComponentHooks<Data>
 /** Cast an exported component as a ProtectedComponent to disallow world.Add, Set, and Remove.\
  * Use this when you want to enforce that other code modify the data in a particular way. */
-export type ProtectedComponent<Data = any> = Reconstruct<Entity & { IsFlag: undefined, __data: Data, __protected: true }> & ComponentHooks<Data>
+export type ProtectedComponent<Data = any> = Reconstruct<Entity & { IsFlag: undefined; __data: Data; __protected: true }> & ComponentHooks<Data>
 /** An unprotected component (i.e. you can use in world.Add, Set, and Remove). */
-export type Component<Data = any> = Reconstruct<Entity & { IsFlag: undefined, __data: Data, __protected: never }> & ComponentHooks<Data>
+export type Component<Data = any> = Reconstruct<Entity & { IsFlag: undefined; __data: Data; __protected: never }> & ComponentHooks<Data>
 
 type FlagHooks = {
 	OnAdd?: (e: Entity) => void
@@ -37,9 +37,9 @@ type FlagHooks = {
 export type AnyFlag = Reconstruct<Entity & { IsFlag: true }> & FlagHooks
 /** Cast an exported flag as a ProtectedFlag to disallow world.Add and Remove.\
  * Use this when you want to enforce that other code only add/remove this flag in a particular way. */
-export type ProtectedFlag = Reconstruct<Entity & { IsFlag: true, __protected: true }> & FlagHooks
+export type ProtectedFlag = Reconstruct<Entity & { IsFlag: true; __protected: true }> & FlagHooks
 /** An unprotected flag (i.e. you can use in world.Add and Remove). */
-export type Flag = Reconstruct<Entity & { IsFlag: true, __protected: never }> & FlagHooks
+export type Flag = Reconstruct<Entity & { IsFlag: true; __protected: never }> & FlagHooks
 
 type Iter<T extends unknown[]> = IterableFunction<LuaTuple<[Entity, ...T]>>
 export type Query<T extends unknown[]> = Iter<T> & {
@@ -55,6 +55,36 @@ export type Query<T extends unknown[]> = Iter<T> & {
 	/** Counts how many entities are in the query. (Faster than iterating over them yourself.) */
 	Count(): number
 	Clone(): Query<T>
+	/** Returns true if Count would return 0. (Faster than using `Count() == 0`) */
+	IsEmpty(): boolean
+}
+
+/** The same as Entity, but for use with type checked queries. */
+export type Entity_<Name extends string = string> = Reconstruct<
+	Omit<Entity, "Name"> & {
+		/** The name associated with this entity for use with type checking. */
+		Name: Name
+	}
+>
+
+/** Represents a collection of entities for use in type checked queries. */
+export type Components<T extends Entity_[]> = {
+	[K in T[number]["Name"]]: Extract<T[number], { Name: K }>
+}
+/** A type checked query. */
+export type Query_<A extends Components<any>, T extends A[keyof A][]> = Iter<InferComponentValues<T>> & {
+	/** Require that entities have the specified components. Note that the value of these components will not be returned in the iteration. */
+	With(...components: A[keyof A][]): Query_<A, T>
+	/** Require that entities *not* have the specified components. */
+	Without(...components: A[keyof A][]): Query_<A, T>
+	/** Filters out any archetypes (sets of entities) for which `keep(has)` returns false\
+	 * `has` is the set of components that the archetype has.\
+	 * For example, if you wanted to iterate over entities that have component A or B:\
+	 * `query:Custom(function(has) return has[A] or has[B] end)` */
+	Custom(keep: (hasComponent: ReadonlySet<Entity>) => boolean): Query_<A, T>
+	/** Counts how many entities are in the query. (Faster than iterating over them yourself.) */
+	Count(): number
+	Clone(): Query_<A, T>
 	/** Returns true if Count would return 0. (Faster than using `Count() == 0`) */
 	IsEmpty(): boolean
 }
@@ -125,6 +155,20 @@ export class World {
 	 * During iteration, you are allowed to modify the current entity (by adding/removing/changing values or even deleting the entity), but not others (such as by running a query inside of a query).\
 	 * If a system saves a query, you can iterate over it repeatedly (though this is only a tiny performance benefit as most of the work is done when you start iteration). */
 	Query<T extends Entity[]>(...components: T): Query<InferComponentValues<T>>
+	/** Same as Query, but returns a type checked query, to notify you if you attempt to query for a component that a particular type of entity doesn't have.
+	 * @example
+	 * ```
+	 * // Step 1: define your component sets:
+	 * type Character = Components<[typeof Model, typeof Health]>
+	 * type Effects = Components<[typeof Healing, typeof Poisoned]>
+	 * // Step 2: use the component sets in the query (& them together if you need more than one, especially if you have a flag that is specific to a particular system)
+	 * for (const [e, health, healing] of world.Query_<Character & Effects>()(Health, Healing)) {
+	 * 	// ...
+	 * }
+	 * ```
+	 * You will get an (unfortunately cryptic) error message if you attempt to use a component not in the component sets.
+	 */
+	Query_<A extends Components<any>>(): <T extends A[keyof A][]>(...components: T) => Query_<A, T>
 
 	/** Remove empty archetypes (good for memory and query performance, but at the cost of having to create them again later, if needed).\
 	 * Note that archetypes with deleted components are automatically cleaned up in `Delete`.\
