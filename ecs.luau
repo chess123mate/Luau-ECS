@@ -165,6 +165,9 @@ function World.new()
 		nextId = 0,
 		idToEntity = {},
 	}, World)
+	self._Component = function(name) -- TS type checked components support
+		return self:Component(name)
+	end
 	self.ComponentFlag = World_newEntity(self, "ComponentFlag")
 	self.ComponentFlag.IsFlag = true
 	self:Add(self.ComponentFlag, self.ComponentFlag)
@@ -184,12 +187,16 @@ function World:Component(name)
 	self:Add(e, self.ComponentFlag)
 	return e
 end
+function World:Component_() -- TS type checked components support
+	return self._Component
+end
 function World:Flag(name)
 	local e = World_newEntity(self, name)
 	self:Add(e, self.ComponentFlag)
 	e.IsFlag = true
 	return e
 end
+World.Flag_ = World.Flag -- TS type checked components support
 
 local function World_newArchetypeFor(self, e, key, components, hasComponent)
 	local archetype = {
@@ -359,7 +366,7 @@ function World:Delete(e)
 	e.archetype = nil
 end
 
---- Returns true while the world is deleting 'e'.
+--- Returns true while the world is deleting 'e' (but false if it's already been deleted; you should only use this in OnRemove/OnChange hooks).
 function World:IsDeleting(e)
 	return deletingArchetype == (e or error("Missing entity argument in World:IsDeleting", 2)).archetype
 end
@@ -380,7 +387,7 @@ function World:ClearComponent(C, _deleting)
 	if numArchetypesCount == 0 then return end
 	local onChange = C.OnChange
 	local onRemove = C.OnRemove
-	local onDelete = C.OnDelete
+	local onDelete = _deleting and C.OnDelete -- We don't want to invoke OnDelete if we're only clearing
 	local keyToArchetype = self.keyToArchetype
 	local entitiesRemoved -- a list of List<entity> to run hooks on after the loop is done (and to delete values for) [if entitiesRemoved is false, see "Remove all values from entities" for value deletion handling]
 	if onChange or onRemove or onDelete then
@@ -476,20 +483,36 @@ function World:ClearComponent(C, _deleting)
 	end
 	if entitiesRemoved then
 		if C.IsFlag then
-			for _, list in entitiesRemoved do
-				for _, e in list do
-					if onRemove then onRemove(e) end
-					if onDelete then onDelete(e) end
+			if onRemove then
+				for _, list in entitiesRemoved do
+					for _, e in list do
+						onRemove(e)
+					end
+				end
+			end
+			if onDelete then
+				for _, list in entitiesRemoved do
+					for _, e in list do
+						onDelete(e)
+					end
 				end
 			end
 		else
-			for _, list in entitiesRemoved do
-				for _, e in list do
-					local prevValue = e[C]
-					e[C] = nil
-					if onChange then onChange(e, nil, prevValue) end
-					if onRemove then onRemove(e, prevValue) end
-					if onDelete then onDelete(e, prevValue) end
+			if onChange or onRemove or onDelete then
+				for _, list in entitiesRemoved do
+					for _, e in list do
+						local prevValue = e[C]
+						e[C] = nil
+						if onChange and prevValue ~= nil then onChange(e, nil, prevValue) end
+						if onRemove then onRemove(e, prevValue) end
+						if onDelete then onDelete(e, prevValue) end
+					end
+				end
+			else
+				for _, list in entitiesRemoved do
+					for _, e in list do
+						e[C] = nil
+					end
 				end
 			end
 		end
@@ -537,7 +560,8 @@ end
 
 local Query = {}
 Query.__index = Query
-local function Query_new(with)
+local function Query_new(...)
+	local with = {...}
 	return setmetatable({
 		numComponents = #with,
 		with = with, -- List<Component>
@@ -576,6 +600,7 @@ function Query:Without(...)
 	end
 	return self
 end
+Query.IsNot = Query.Without -- TS type checked components support
 --- Filters out any archetypes (sets of entities) for which `keep(has)` returns false
 --- `has` is the set of components that the archetype has. (Do not modify this value!)
 --- For example, if you wanted to iterate over entities that have component A or B:
@@ -836,9 +861,9 @@ end
 --- Query which components have all the specified components for iteration. You can further modify the query using :With(...), :Without(...), or :Custom(keep) -- see Query function documentation for more.
 --- Iterate over a query using `for entity, health in world:Query(Health) do`
 --- During iteration, you are allowed to modify the current entity (by adding/removing/changing values or even deleting the entity), but not others (such as by running a query inside of a query).
---- If a system saves a query, you can iterate over it repeatedly (though this is a tiny performance benefit as most of the work is done when you start iteration).
+--- Systems can save & reuse queries (though this is only a tiny performance benefit as most of the work is done when you start iteration).
 function World:Query(...)
-	return Query_new({...})
+	return Query_new(...)
 end
 --- Supports type checked queries in Typescript
 function World:Query_()

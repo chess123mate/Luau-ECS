@@ -41,8 +41,8 @@ export type ProtectedFlag = Reconstruct<Entity & { IsFlag: true; __protected: tr
 /** An unprotected flag (i.e. you can use in world.Add and Remove). */
 export type Flag = Reconstruct<Entity & { IsFlag: true; __protected: never }> & FlagHooks
 
-type Iter<T extends unknown[]> = IterableFunction<LuaTuple<[Entity, ...T]>>
-export type Query<T extends unknown[]> = Iter<T> & {
+type Iter<T extends readonly unknown[]> = IterableFunction<LuaTuple<[Entity, ...T]>>
+export type Query<T extends readonly unknown[]> = Iter<T> & {
 	/** Require that entities have the specified components. Note that the value of these components will not be returned in the iteration. */
 	With(...components: Entity[]): Query<T>
 	/** Require that entities *not* have the specified components. */
@@ -59,40 +59,73 @@ export type Query<T extends unknown[]> = Iter<T> & {
 	IsEmpty(): boolean
 }
 
+
 type Name_<Name extends string> = {
-	/** The name associated with this entity for use with type checking. */
+	/** The name associated with this entity (used with type checking). */
 	Name: Name
 }
 /** The same as Entity, but for use with type checked queries. */
 export type Entity_<Name extends string = string> = Reconstruct<Omit<Entity, "Name"> & Name_<Name>>
 export type Component_<Name extends string = string, Data = any> = Reconstruct<Omit<Component<Data>, "Name"> & Name_<Name>>
 export type Flag_<Name extends string = string> = Reconstruct<Omit<Flag, "Name"> & Name_<Name>>
+export type ProtectedComponent_<Name extends string = string, Data = any> = Reconstruct<Omit<ProtectedComponent<Data>, "Name"> & Name_<Name>>
+export type ProtectedFlag_<Name extends string = string> = Reconstruct<Omit<ProtectedFlag, "Name"> & Name_<Name>>
 
-/** Represents a collection of entities for use in type checked queries. */
-export type Components<T extends Entity_[]> = {
+/** Represents an entity type description, for use in type checked queries.\
+ * If you get an error while trying to create one of these, it's probably because one of the components/flags is unnamed - double check that you're using `world.Component_` / `world.Flag_` and that any type casts applied to the target component maintains the name. For instance, casting `as Component<Data>` will remove the name from the type; use `as Component_<"NameHere", Data>` instead. */
+export type Components<T extends readonly Entity_[]> = {
 	[K in T[number]["Name"]]: Extract<T[number], { Name: K }>
 }
-/** A type checked query. */
-export type Query_<A extends Components<any>, T extends A[keyof A][]> = Iter<InferComponentValues<T>> & {
+
+/** Validate that each component in Args belongs in Desc (ignoring unnamed components) */
+type ValidateComponents<Desc, Args extends readonly unknown[]> = {
+	[K in keyof Args]: Args[K] extends { Name: infer N extends string }
+		? string extends N
+			? Args[K]
+			: N extends keyof Desc
+				? Args[K]
+				: never
+		: Args[K]
+}
+
+/** Same as ValidateComponents but disallow components that belong to Desc */
+type ValidateNotComponents<Desc, Args extends readonly unknown[]> = {
+	[K in keyof Args]: Args[K] extends { Name: infer N extends string }
+		? string extends N
+			? Args[K]
+			: N extends keyof Desc
+				? never
+				: Args[K]
+		: Args[K]
+}
+
+type InferComponentValue<E> = E extends AnyComponent<infer T> ? T : undefined
+type InferComponentValues<A extends readonly Entity[]> = {
+	[K in keyof A]: InferComponentValue<A[K]>
+}
+
+/** A type checked query.
+ * @type Desc - the set of components that a target entity may have (created using the `Components` type). */
+export type Query_<Desc extends Components<any>, Args extends readonly Entity[]> = Iter<InferComponentValues<Args>> & {
 	/** Require that entities have the specified components. Note that the value of these components will not be returned in the iteration. */
-	With(...components: A[keyof A][]): Query_<A, T>
-	/** Require that entities *not* have the specified components. */
-	Without(...components: A[keyof A][]): Query_<A, T>
+	With<Args2 extends readonly Entity[]>(...components: ValidateComponents<Desc, Args2>): Query_<Desc, Args>
+	/** Require that entities *not* have the specified components (type checking will assert that `Desc` may have them; use `IsNot` if you're using the component to restrict entities to just `Desc`). */
+	Without<Args2 extends readonly Entity[]>(...components: ValidateComponents<Desc, Args2>): Query_<Desc, Args>
+	/** Require that entities *not* have the specified components (type checking will assert that `Desc` *does not* have them).\
+	 * Use this to find just the entity type you're looking for.\
+	 * Without vs IsNot example: say you're updating enemy health in response to poison, but players have separate health updating logic. Then you might use `world.Query_<Enemy_>()(Health, Poison).IsNot(Player).Without(PoisonInit)`. `IsNot` restricts to just the `Enemy_` description; `Without` specifies "Enemies can have this but I don't want it".\
+	 * For unnamed components/flags (which won't error in either case) or other cases where this distinction seems meaningless, prefer to use `Without`. */
+	IsNot<Args2 extends readonly Entity[]>(...components: ValidateNotComponents<Desc, Args2>): Query_<Desc, Args>
 	/** Filters out any archetypes (sets of entities) for which `keep(has)` returns false\
 	 * `has` is the set of components that the archetype has.\
 	 * For example, if you wanted to iterate over entities that have component A or B:\
 	 * `query:Custom(function(has) return has[A] or has[B] end)` */
-	Custom(keep: (hasComponent: ReadonlySet<Entity>) => boolean): Query_<A, T>
+	Custom(keep: (hasComponent: ReadonlySet<Entity>) => boolean): Query_<Desc, Args>
 	/** Counts how many entities are in the query. (Faster than iterating over them yourself.) */
 	Count(): number
-	Clone(): Query_<A, T>
+	Clone(): Query_<Desc, Args>
 	/** Returns true if Count would return 0. (Faster than using `Count() == 0`) */
 	IsEmpty(): boolean
-}
-
-type InferComponentValue<E> = E extends AnyComponent<infer T> ? T : undefined
-type InferComponentValues<A extends Entity[]> = {
-	[K in keyof A]: InferComponentValue<A[K]>
 }
 
 export class World {
@@ -104,38 +137,55 @@ export class World {
 	EntityFlag: Flag
 
 	/** Create a new entity.\
-	 * If needed, you can use this as a Component or Flag (simply type-cast it). If you intend to use it as a Flag, set `entity.IsFlag` to `true`.\
-	 * Unlike a Component or Flag, entities created this way have `EntityFlag` set.
+	 * Technically you can use this as a component/flag (but if you intend to use it as a Flag, set `entity.IsFlag` to `true`).\
+	 * Note: unlike a Component or Flag, entities created this way have `world.EntityFlag` added (instead of `world.ComponentFlag`).
 	 * @param name Stored in entity.Name */
-	Entity(): Entity
-	Entity<Name extends string>(name: Name): Entity_<Name>
-	/** Create a new Component entity. Unlike an Entity, it has `ComponentFlag` set.
+	Entity(name?: string): Entity
+	/** Create a new Component entity. Unlike an Entity, it has `ComponentFlag` added.
 	 * @param name Stored in entity.Name. If you want to use this component in type checked queries, use Component_ instead. */
 	Component<Data>(name?: string): Component<Data>
+	/** Same as Component, but for use with type checked queries. */
 	Component_<Data>(): <Name extends string>(name: Name) => Component_<Name, Data>
-	/** Create a new Flag entity. Unlike an Entity, it has `ComponentFlag` set. Unlike Components, Flags never have data associated with them.
+	/** Create a new Flag entity. Unlike an Entity, it has `ComponentFlag` added. Unlike Components, Flags never have data associated with them.
 	 * @param name Stored in entity.Name */
-	Flag(): Flag
-	Flag<Name extends string>(name: Name): Flag_<Name>
+	Flag(name?: string): Flag
+	/** Same as Flag, but for use with type checked queries.
+	 * @param name Stored in entity.Name */
+	Flag_<Name extends string>(name: Name): Flag_<Name>
 
+	/** Triggers:
+	 * - OnAdd (unless the entity already had the flag)
+	 *
+	 * For components, use Set. */
 	Add(e: Entity, C: Flag): void
 	Has(e: Entity, C: Entity): boolean
-	/** Combination of World:Add and associating a value between the entity and component. (Note that an entity can have a component even if its value is undefined, so `value = undefined` is valid.) */
+	/** Adds the component to the entity with the specified value. (Note that an entity can have a component even if its value is undefined, so `value = undefined` is valid and `Has(entity, component)` will still return true.)\
+	 * Triggers:
+	 * - OnAdd (if the entity didn't have the component before)
+	 * - OnChange (if the new value is different). */
 	Set<Data>(e: Entity, C: Component<Data>, value: Data): void
 	/** Get the value associated with a component.\
-	 * You are allowed to call Get(e, flag), but since this will always return `undefined` it is usually a bug (you usually want to check if `Has`, not `Get`).\
-	 * You can also get the data directly via e[C], so long as you treat it as read-only. */
+	 * You are technically allowed to call Get(e, flag), but since this will always return `undefined` it is usually a bug (you usually want to check if `Has`, not `Get`).\
+	 * (You can also get the data directly via e[C], so long as you treat it as read-only.) */
 	Get<Data>(e: Entity, C: AnyComponent<Data>): Data | undefined
 
-	/** Removes a component from the entity\
-	 * Does nothing if the entity doesn't have the component */
+	/** Removes a component or flag from the entity, doing nothing if the entity already didn't have the component/flag.\
+	 * Triggers:
+	 * - OnChange (if C is a component with a non-undefined value)
+	 * - OnRemove */
 	Remove<C extends Component<any> | Flag>(e: Entity, C: C): void
 
 	/** Deletes all data from the entity, removes the entity from the world, and - treating `e` like a component - removes any data associated with `e` from all other entities.\
 	 * Of course, if you have references to entities in any of your data, this cannot be deleted automatically - use OnDelete hooks for such components.\
-	 * If the entity is already deleted, does nothing. */
+	 * If the entity is already deleted, does nothing.\
+	 * It is safe to continue to use `e` while it is being deleted (in OnChange/OnRemove hooks), but operations that add/remove components will silently do nothing. (`Set` will update the value only if the entity already had the component.)\
+	 * After Delete returns, `e` is no longer an entity and cannot be used in any function except `IsDeleted`.\
+	 * Triggers:
+	 * - OnChange (for each component that had a value)
+	 * - OnRemove (for all components/flags)
+	 * - OnDelete (for all components/flags) */
 	Delete(e: Entity): void
-	/** Returns true while the world is deleting 'e'. */
+	/** Returns true while the world is deleting 'e' (but false if it's already been deleted; you should only use this in OnRemove/OnChange hooks). */
 	IsDeleting(e: Entity): boolean
 	/** Returns true if 'e' has been deleted.\
 	Ideally you shouldn't need this, aside from its use in debugging. Typically, if you have a reference to an entity (that could have been deleted) in a component, you should use an OnDelete hook to clean it up. */
@@ -157,21 +207,22 @@ export class World {
 	 * You can further modify the query using :With(...), :Without(...), or :Custom(keep)\
 	 * Iterate over a query using `for entity, health in world:Query(Health) do`\
 	 * During iteration, you are allowed to modify the current entity (by adding/removing/changing values or even deleting the entity), but not others (such as by running a query inside of a query).\
-	 * If a system saves a query, you can iterate over it repeatedly (though this is only a tiny performance benefit as most of the work is done when you start iteration). */
-	Query<T extends Entity[]>(...components: T): Query<InferComponentValues<T>>
-	/** Same as Query, but returns a type checked query, to notify you if you attempt to query for a component that a particular type of entity doesn't have.
+	 * Systems can save & reuse queries (though this is only a tiny performance benefit as most of the work is done when you start iteration). */
+	Query<T extends readonly Entity[]>(...components: T): Query<InferComponentValues<T>>
+	/** Same as Query, but returns a type checked query, to notify you if you attempt to query for a component that a particular type of entity doesn't have. Note that components/entities that do not have a Name are always allowed.
+	 * @type Desc - the set of components you expect an entity (of the type you are querying for) to potentially have
 	 * @example
 	 * ```
-	 * // Step 1: define your component sets:
-	 * type Character = Components<[typeof Model, typeof Health]>
-	 * type Effects = Components<[typeof Healing, typeof Poisoned]>
+	 * // Step 1: define your component sets using defined components/flags:
+	 * type Character_ = Components<[typeof Model, typeof Health]>
+	 * type Effects_ = Components<[typeof Healing, typeof Poisoned]>
 	 * // Step 2: use the component sets in the query (& them together if you need more than one, especially if you have a flag that is specific to a particular system)
-	 * for (const [e, health, healing] of world.Query_<Character & Effects>()(Health, Healing)) {
+	 * for (const [e, health, healing] of world.Query_<Character_ & Effects_>()(Health, Healing)) {
 	 * 	// ...
 	 * }
 	 * ```
-	 * You will get an (unfortunately cryptic) error message if you attempt to use a component not in the component sets. */
-	Query_<A extends Components<any>>(): <T extends A[keyof A][]>(...components: T) => Query_<A, T>
+	 * You will get an (unfortunately obfuscated) error message if you attempt to use a component not in `Desc` (the first few words are `Argument of type`). */
+	Query_<Desc extends Components<any> = {}>(): <Args extends readonly Entity[]>(...components: ValidateComponents<Desc, Args>) => Query_<Desc, Args>
 
 	/** Remove empty archetypes (good for memory and query performance, but at the cost of having to create them again later, if needed).\
 	 * Note that archetypes with deleted components are automatically cleaned up in `Delete`.\
@@ -211,7 +262,11 @@ export class World {
 	OnDelete<Data>(C: AnyComponent<Data>, onDelete: (e: Entity, prev: Data) => void): void
 
 	/** Casts the component as Protected, disallowing world.Add, Set, and Remove */
-	Protected: <C extends Component<any> | Flag>(C: C) => C extends Component<infer Data> ? ProtectedComponent<Data> : ProtectedFlag
+	Protected: <C extends Component<any> | Flag>(C: C) =>
+		C extends Component_<infer Name, infer Data> ? ProtectedComponent_<Name, Data>
+		: C extends Component<infer Data> ? ProtectedComponent<Data>
+		: C extends Flag_<infer Name> ? ProtectedFlag_<Name>
+		: ProtectedFlag
 }
 
 /** Returns true if it's an entity/component/flag that hasn't been deleted */
